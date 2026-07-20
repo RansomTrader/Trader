@@ -142,6 +142,7 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 
 <nav>
   <button data-tab="market" class="on">MARKET</button>
+  <button data-tab="portfolio">DESK</button>
   <button data-tab="sizer">SIZER</button>
   <button data-tab="journal">JOURNAL</button>
   <button data-tab="config">SETUP</button>
@@ -155,6 +156,19 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
   </div>
   <div id="cards"></div>
   <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
+</div>
+
+<!-- ══ DESK ══ -->
+<div class="tab" id="tab-portfolio">
+  <div class="row" style="margin-bottom:14px">
+    <div class="stat"><span class="lbl">Cash</span><div class="v num" id="pCash">—</div></div>
+    <div class="stat"><span class="lbl">Equity</span><div class="v num" id="pEquity">—</div></div>
+    <div class="stat"><span class="lbl">Open P/L</span><div class="v num" id="pUpl">—</div></div>
+  </div>
+  <div id="pOrders"></div>
+  <div id="pPositions"></div>
+  <div class="empty-state" id="pEmpty"><b>Flat — no positions or orders</b>Size a trade in SIZER, submit a paper order, and fills land here at live prices. Limit orders rest until the stream crosses your level.</div>
+  <div class="row" style="margin-top:14px"><button class="ghost" onclick="resetPaper()">reset paper account</button></div>
 </div>
 
 <!-- ══ SIZER ══ -->
@@ -181,6 +195,16 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
     <div class="stat"><span class="lbl">$ at risk</span><div class="v num" id="szDollar">—</div></div>
     <div class="stat"><span class="lbl">Position</span><div class="v num" id="szPos">—</div></div>
     <div class="stat"><span class="lbl">R : R</span><div class="v num" id="szRR">—</div></div>
+  </div>
+  <div class="card" id="szOrder" style="display:none; margin-top:10px">
+    <span class="lbl">Submit paper order</span>
+    <div class="grid2">
+      <div><span class="lbl">Type</span><select id="ordType"><option value="mkt">Market</option><option value="lim">Limit</option></select></div>
+      <div><span class="lbl">Limit price</span><input type="number" id="ordLimit" step="0.01" inputmode="decimal"></div>
+    </div>
+    <div style="height:12px"></div>
+    <button class="solid" onclick="submitOrder()">Submit</button>
+    <div class="dimtx" style="margin-top:8px">Fills at live streamed prices. Stop is recorded for R tracking (not auto-executed — you close manually, like training wheels off).</div>
   </div>
   <div class="dimtx" id="szNote" style="margin-top:10px"></div>
 </div>
@@ -351,8 +375,8 @@ async function poll(){
   }
   pollBusy=false;tick++;
   document.getElementById("pulseDot").style.display="inline-block";
-  document.getElementById("meta").textContent=`live · 15s · #${tick}`;
-  render();renderJournal();
+  if(!wsAlive)document.getElementById("meta").textContent=`live · 15s · #${tick}`;
+  checkFills();render();renderJournal();renderDesk();
 }
 setInterval(poll,POLL_MS);
 
@@ -384,7 +408,7 @@ function wsConnect(){
 }
 function wsSub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"subscribe",symbol:sym}));}
 function wsUnsub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"unsubscribe",symbol:sym}));}
-setInterval(()=>{if(dirty){dirty=false;buildAllSigs();render();renderJournal();}},1000);
+setInterval(()=>{if(dirty){dirty=false;buildAllSigs();checkFills();render();renderJournal();}},1000);
 function buildAllSigs(){symbols.forEach(buildSigs);}
 
 /* ══ earnings calendar ══ */
@@ -551,6 +575,9 @@ function calcSize(){
   document.getElementById("szRR").textContent=rr;
   document.getElementById("szNote").textContent=note;
   document.getElementById("szOut").style.display="flex";
+  lastCalc={sym:document.getElementById("szSym").value,side,shares,stop,entry};
+  document.getElementById("ordLimit").value=entry.toFixed(2);
+  document.getElementById("szOrder").style.display=lastCalc.sym?"block":"none";
 }
 function atrStop(){
   const sym=document.getElementById("szSym").value;
@@ -638,6 +665,129 @@ function exportCSV(){
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="paper-trades.csv";a.click();
 }
 
+/* ══ paper execution engine ══ */
+let paper=LS.get("paper",null);
+function initPaper(){if(!paper){paper={cash:cfg.acct,positions:{},orders:[]};LS.set("paper",paper);}}
+function savePaper(){LS.set("paper",paper);}
+function resetPaper(){
+  if(!confirm("Reset paper account? Positions and open orders are wiped (journal history stays)."))return;
+  paper={cash:cfg.acct,positions:{},orders:[]};savePaper();renderDesk();toast("Paper account reset to $"+cfg.acct.toLocaleString());
+}
+let lastCalc=null; // set by calcSize
+function submitOrder(){
+  initPaper();
+  if(!lastCalc){toast("Calculate first");return;}
+  const type=document.getElementById("ordType").value;
+  const limit=+document.getElementById("ordLimit").value;
+  if(type==="lim"&&!limit){toast("Limit order needs a limit price");return;}
+  const {sym,side,shares,stop}=lastCalc;
+  if(!sym){toast("Pick a tracked ticker in SIZER to route an order");return;}
+  const pos=paper.positions[sym];
+  if(pos&&((pos.qty>0&&side==="short")||(pos.qty<0&&side==="long"))){toast("Close the existing "+sym+" position first");return;}
+  const o={id:Date.now(),sym,side,act:"open",qty:shares,type,limit:type==="lim"?limit:null,stop,status:"open",created:new Date().toISOString()};
+  paper.orders.push(o);savePaper();
+  if(!symbols.includes(sym)){symbols.push(sym);LS.set("syms",symbols);state[sym]={};queueCandles(sym);loadEarnings(sym);wsSub(sym);}
+  checkFills();renderDesk();
+  toast(type==="mkt"?"Market order submitted":"Limit resting at "+limit);
+}
+function crossable(o,px){
+  if(o.type==="mkt")return true;
+  const L=o.limit;
+  if(o.act==="open") return o.side==="long"?px<=L:px>=L;
+  return o.side==="long"?px>=L:px<=L; // closes
+}
+function fillPx(o,px){return o.type==="mkt"?px:o.limit;}
+function checkFills(){
+  if(!paper||!paper.orders.length)return;
+  let changed=false;
+  for(const o of paper.orders){
+    if(o.status!=="open")continue;
+    const q=state[o.sym]&&state[o.sym].quote;
+    if(!q||!q.c)continue;
+    if(!crossable(o,q.c))continue;
+    const px=fillPx(o,q.c);
+    if(o.act==="open"){
+      const cost=o.qty*px;
+      if(o.side==="long"&&cost>paper.cash){o.status="rejected";o.reason="insufficient cash";changed=true;continue;}
+      const p=paper.positions[o.sym]||{qty:0,avg:0,stop:o.stop,side:o.side};
+      const newQty=o.side==="long"?p.qty+o.qty:p.qty-o.qty;
+      const absOld=Math.abs(p.qty),absNew=Math.abs(newQty);
+      p.avg=absNew?((p.avg*absOld+px*o.qty)/absNew):px;
+      p.qty=newQty;p.stop=o.stop||p.stop;p.side=o.side;
+      paper.positions[o.sym]=p;
+      paper.cash+=o.side==="long"?-cost:cost;
+    }else{
+      const p=paper.positions[o.sym];
+      if(!p||Math.abs(p.qty)<o.qty){o.status="rejected";o.reason="no position";changed=true;continue;}
+      paper.cash+=p.qty>0?o.qty*px:-o.qty*px;
+      const entrySide=p.qty>0?"long":"short";
+      trades.unshift({id:Date.now()+Math.random(),sym:o.sym,side:entrySide,entry:p.avg,stop:p.stop||p.avg,shares:o.qty,
+        note:"paper fill ("+o.type+")",opened:o.created,closed:new Date().toISOString(),exit:px});
+      LS.set("trades",trades);
+      p.qty+=p.qty>0?-o.qty:o.qty;
+      if(p.qty===0)delete paper.positions[o.sym];
+    }
+    o.status="filled";o.filledPx=px;o.filledAt=new Date().toISOString();
+    changed=true;
+  }
+  paper.orders=paper.orders.filter(o=>o.status==="open"||Date.now()-o.id<60000); // keep open + last minute of fills for visibility
+  if(changed){savePaper();renderDesk();renderJournal();}
+}
+function cancelOrder(id){paper.orders=paper.orders.filter(o=>o.id!==id);savePaper();renderDesk();}
+function closePos(sym){
+  const p=paper.positions[sym];if(!p)return;
+  const live=state[sym]&&state[sym].quote?state[sym].quote.c:null;
+  const inp=prompt(`Close ${Math.abs(p.qty)} ${sym} — enter limit price, or leave blank for MARKET${live?" ("+live.toFixed(2)+")":""}:`,"");
+  if(inp===null)return;
+  const isLim=inp.trim()!=="";
+  const o={id:Date.now(),sym,side:p.qty>0?"long":"short",act:"close",qty:Math.abs(p.qty),
+    type:isLim?"lim":"mkt",limit:isLim?+inp:null,stop:p.stop,status:"open",created:new Date().toISOString()};
+  if(isLim&&isNaN(o.limit)){toast("Bad limit price");return;}
+  paper.orders.push(o);savePaper();checkFills();renderDesk();
+  toast(isLim?"Limit close resting at "+o.limit:"Closing at market");
+}
+function renderDesk(){
+  initPaper();
+  const posKeys=Object.keys(paper.positions);
+  const openOrds=paper.orders.filter(o=>o.status!=="filled"||Date.now()-o.id<60000);
+  document.getElementById("pEmpty").style.display=(posKeys.length||openOrds.length)?"none":"block";
+  let upl=0,posVal=0;
+  const posHTML=posKeys.map(sym=>{
+    const p=paper.positions[sym];
+    const live=state[sym]&&state[sym].quote?state[sym].quote.c:null;
+    const pl=live!=null?(live-p.avg)*p.qty:null;
+    if(pl!=null)upl+=pl;
+    if(live!=null)posVal+=p.qty*live;
+    const risk=p.stop?Math.abs(p.avg-p.stop):0;
+    const r=pl!=null&&risk?((p.qty>0?live-p.avg:p.avg-live)/risk):null;
+    const cls=pl==null?"f":pl>=0?"u":"d";
+    return `<div class="card" style="--vc:${pl==null?"var(--flat)":pl>=0?"var(--up)":"var(--dn)"}">
+      <div class="row" style="justify-content:space-between">
+        <div><b style="font-family:var(--disp)">${sym}</b> <span class="dimtx num">${p.qty>0?"long":"short"} ${Math.abs(p.qty)} @ ${p.avg.toFixed(2)}${p.stop?" · stop "+p.stop.toFixed(2):""}</span></div>
+        <div class="${cls} num" style="font-weight:700">${pl!=null?(pl>=0?"+$":"−$")+Math.abs(pl).toFixed(0):"—"}${r!=null?" · "+(r>=0?"+":"")+r.toFixed(2)+"R":""}</div>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="line" style="padding:5px 12px" onclick="closePos('${sym}')">Close</button></div>
+    </div>`;
+  }).join("");
+  const ordHTML=openOrds.map(o=>{
+    const stCls=o.status==="open"?"a":o.status==="filled"?"u":"d";
+    return `<div class="card" style="--vc:var(--amber)">
+      <div class="row" style="justify-content:space-between">
+        <div><b style="font-family:var(--disp)">${o.sym}</b> <span class="dimtx num">${o.act} ${o.side} ${o.qty} · ${o.type==="mkt"?"market":"limit "+o.limit}</span></div>
+        <span class="${stCls}" style="font-size:11px;font-weight:600">${o.status.toUpperCase()}${o.filledPx?" @ "+o.filledPx.toFixed(2):""}${o.reason?" — "+o.reason:""}</span>
+      </div>
+      ${o.status==="open"?`<div class="row" style="margin-top:8px"><button class="ghost" onclick="cancelOrder(${o.id})">cancel</button></div>`:""}
+    </div>`;
+  }).join("");
+  document.getElementById("pOrders").innerHTML=ordHTML?`<div class="section-lbl">ORDERS</div>`+ordHTML:"";
+  document.getElementById("pPositions").innerHTML=posHTML?`<div class="section-lbl">POSITIONS · LIVE</div>`+posHTML:"";
+  document.getElementById("pCash").textContent="$"+paper.cash.toLocaleString(undefined,{maximumFractionDigits:0});
+  document.getElementById("pEquity").textContent="$"+(paper.cash+posVal).toLocaleString(undefined,{maximumFractionDigits:0});
+  const u=document.getElementById("pUpl");
+  u.textContent=(upl>=0?"+$":"−$")+Math.abs(upl).toFixed(0);
+  u.className="v num "+(upl>=0?"u":"d");
+}
+
 /* ══ config + tabs ══ */
 function saveCfg(){
   cfg={fh:document.getElementById("cfgFh").value.trim(),
@@ -666,7 +816,7 @@ document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
 symbols.forEach(s=>{state[s]={};queueCandles(s);loadEarnings(s);});
-renderJournal();render();poll();wsConnect();
+renderJournal();render();poll();wsConnect();initPaper();renderDesk();
 </script>
 </body>
 </html>
