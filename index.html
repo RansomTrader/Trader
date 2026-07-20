@@ -154,6 +154,15 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
     <input id="symInput" placeholder="Add ticker — AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
     <button class="line" onclick="addSymbol()">Track</button>
   </div>
+  <div class="card" style="--vc:var(--info); padding:10px 14px; margin-bottom:12px">
+    <details id="tapeBox">
+      <summary class="row" style="justify-content:space-between">
+        <span style="font-size:11px; letter-spacing:.16em; color:var(--info); font-weight:600">NEWS TAPE</span>
+        <span class="dimtx" id="tapeCount">—</span>
+      </summary>
+      <div id="tape" style="margin-top:8px; max-height:300px; overflow-y:auto"></div>
+    </details>
+  </div>
   <div id="cards"></div>
   <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
 </div>
@@ -475,6 +484,49 @@ function chipHTML(s){
   return `<span class="chip" style="border-color:${c}33;background:${c}0E"><span class="k">${s.k}</span><span class="num" style="color:${c};font-weight:600">${s.v}</span><span class="n" style="color:${c}">${s.note}</span></span>`;
 }
 
+/* ══ news tape ══ */
+function fmtTime(unix){
+  if(!unix)return "";
+  const d=new Date(unix*1000), now=new Date();
+  const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  return d.toDateString()===now.toDateString()?t:d.toLocaleDateString([],{month:"short",day:"numeric"})+" "+t;
+}
+const tapeSeen=new Set(); let tapeItems=[]; let tapeFirstRun=true;
+async function pollNewsTape(){
+  if(!cfg.fh||!symbols.length)return;
+  const from=new Date(Date.now()-2*86400e3).toISOString().slice(0,10);
+  const to=new Date().toISOString().slice(0,10);
+  let fresh=0;
+  for(const sym of symbols){
+    try{
+      const arts=await fh(`/company-news?symbol=${sym}&from=${from}&to=${to}`);
+      for(const a of (arts||[]).slice(0,10)){
+        if(tapeSeen.has(a.id))continue;
+        tapeSeen.add(a.id);
+        tapeItems.push({...a,sym,fresh:!tapeFirstRun});
+        if(!tapeFirstRun)fresh++;
+      }
+    }catch(e){}
+  }
+  tapeItems.sort((a,b)=>b.datetime-a.datetime);
+  tapeItems=tapeItems.slice(0,40);
+  if(fresh)toast(fresh+" new headline"+(fresh>1?"s":""));
+  tapeFirstRun=false;
+  renderTape();
+}
+function renderTape(){
+  const box=document.getElementById("tape");
+  document.getElementById("tapeCount").textContent=tapeItems.length?tapeItems.length+" · 60s poll":"—";
+  box.innerHTML=tapeItems.map(a=>`<div class="news-item">
+    ${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
+    <span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>
+    <a href="${a.url}" target="_blank" rel="noopener">${(a.headline||"").slice(0,120)}</a>
+    <div class="src">${a.source||""} · ${fmtTime(a.datetime)}</div></div>`).join("")
+    ||`<span class="dimtx">no headlines in the last 48h for tracked tickers</span>`;
+  setTimeout(()=>{tapeItems.forEach(a=>a.fresh=false);},55000);
+}
+setInterval(pollNewsTape,60000);
+
 function earnBadge(st){
   if(!st.earnDate)return "";
   const days=Math.ceil((new Date(st.earnDate)-Date.now())/86400e3);
@@ -498,7 +550,7 @@ function render(){
     if(st.candleErr==="no-td")status=`<div class="dimtx" style="margin-top:4px">Add a Twelve Data key in SETUP to unlock indicators</div>`;
     else if(st.candleErr)status=`<div class="dimtx" style="margin-top:4px">candles: ${st.candleErr}</div>`;
     if(st.err)status+=`<div class="d" style="font-size:11px;margin-top:4px">${st.err==="bad-key"?"invalid Finnhub key":st.err==="rate"?"rate limited — easing off":"error: "+st.err}</div>`;
-    const newsHTML=(st.news||[]).map(n=>`<div class="news-item"><a href="${n.url}" target="_blank" rel="noopener">${(n.headline||"").slice(0,110)}</a><div class="src">${n.source||""} · ${n.datetime?new Date(n.datetime*1000).toLocaleDateString():""}</div></div>`).join("");
+    const newsHTML=(st.news||[]).map(n=>`<div class="news-item"><a href="${n.url}" target="_blank" rel="noopener">${(n.headline||"").slice(0,110)}</a><div class="src">${n.source||""} · ${fmtTime(n.datetime)}</div></div>`).join("");
     const priceBlock=q&&q.c
       ?`<div class="big num">${q.c.toFixed(2)}</div><span class="delta ${chgCls} num">${chg!=null?`${chg>=0?"+":""}${chg.toFixed(2)}%`:"—"}</span>`
       :`<div class="skel" style="width:84px;height:24px;margin-bottom:6px"></div><div class="skel" style="width:52px;height:14px"></div>`;
@@ -816,7 +868,7 @@ document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
 symbols.forEach(s=>{state[s]={};queueCandles(s);loadEarnings(s);});
-renderJournal();render();poll();wsConnect();initPaper();renderDesk();
+renderJournal();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();
 </script>
 </body>
 </html>
