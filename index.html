@@ -16,7 +16,7 @@
 <style>
 :root{
   --bg:#0A0E14; --panel:#111722; --panel2:#0D131C; --edge:#1C2634; --edge2:#26334a;
-  --ink:#E2E8F0; --dim:#66788E; --amber:#E8A33D; --amber2:#F5C069;
+  --ink:#E7EDF5; --dim:#8494A9; --amber:#E8A33D; --amber2:#F5C069;
   --up:#3FB68B; --dn:#E05C5C; --flat:#7C8A9E; --info:#7FB4D8;
   --disp:'Space Grotesk',sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
 }
@@ -63,7 +63,7 @@ input,select{background:var(--panel2); border:1px solid var(--edge); border-radi
   color:var(--ink); padding:10px 12px; font-family:var(--mono); font-size:13px; outline:none;
   width:100%; transition:border-color .15s;}
 input:focus,select:focus{border-color:var(--amber); box-shadow:0 0 0 3px #E8A33D1A;}
-input::placeholder{color:#465468;}
+input::placeholder{color:#5A6A80;}
 button.solid{background:linear-gradient(180deg,var(--amber2),var(--amber)); color:#161006;
   border:none; border-radius:6px; padding:10px 20px; font-family:var(--mono); font-weight:600;
   font-size:12px; letter-spacing:.04em; cursor:pointer;}
@@ -99,8 +99,8 @@ button.ghost{background:none; border:none; color:var(--dim); font-family:var(--m
 
 .chip{display:inline-flex; align-items:baseline; gap:5px; padding:4px 9px; border-radius:5px;
   font-size:12px; margin:2px 4px 2px 0; border:1px solid;}
-.chip .k{font-size:9px; color:var(--dim); letter-spacing:.06em;}
-.chip .n{font-size:9px; letter-spacing:.02em;}
+.chip .k{font-size:10px; color:var(--dim); letter-spacing:.06em;}
+.chip .n{font-size:10px; letter-spacing:.02em;}
 .u{color:var(--up);} .d{color:var(--dn);} .f{color:var(--flat);} .a{color:var(--amber);}
 .dimtx{color:var(--dim); font-size:11px; line-height:1.55;}
 
@@ -122,7 +122,7 @@ details[open] .expand-hint{display:none;}
 .news-item{padding:8px 0; border-bottom:1px solid var(--edge); font-size:12px; line-height:1.45;}
 .news-item:last-child{border-bottom:none;}
 .news-item a{color:var(--ink); text-decoration:none;}
-.news-item .src{font-size:10px; color:var(--dim); margin-top:2px;}
+.news-item .src{font-size:10.5px; color:var(--dim); margin-top:2px;}
 .section-lbl{font-size:10px; color:var(--dim); letter-spacing:.16em; margin:14px 0 6px; font-weight:600;}
 footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 .toast{position:fixed; bottom:calc(74px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
@@ -142,8 +142,8 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 @keyframes flashDn{0%{background:#E05C5C33}100%{background:transparent}}
 .fu{animation:flashUp .8s ease-out;} .fd{animation:flashDn .8s ease-out;}
 @media (prefers-reduced-motion:reduce){.fu,.fd{animation:none}}
-#tape .news-item{padding:5px 0; font-size:11.5px;}
-#tape .news-item .src{font-size:9px;}
+#tape .news-item{padding:6px 0; font-size:12px;}
+#tape .news-item .src{font-size:10px;}
 .sndbtn{background:none; border:1px solid var(--edge); border-radius:5px; color:var(--dim);
   font-family:var(--mono); font-size:10px; padding:3px 9px; cursor:pointer; letter-spacing:.06em;}
 .sndbtn.on{color:var(--amber); border-color:#E8A33D66;}
@@ -182,7 +182,7 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 }
 button.line,button.solid{min-height:40px;}
 .stat{border-radius:10px;}
-.expand-hint{font-size:10px; opacity:.7;}
+.expand-hint{font-size:10px; opacity:.55; letter-spacing:.06em;}
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
 /* ── terminal DNA ── */
@@ -192,18 +192,19 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 .cmdlbar input{background:none; border:none; box-shadow:none; padding:11px 0; font-size:13px;
   letter-spacing:.04em; text-transform:uppercase;}
 .cmdlbar input:focus{box-shadow:none;}
-.cmdl-hint{font-size:9px; color:#465468; letter-spacing:.06em; flex:none;}
+.cmdl-hint{font-size:10px; color:#5A6A80; letter-spacing:.06em; flex:none;}
 .montbl{width:100%; border-collapse:collapse; font-size:12px;}
-.montbl th{color:var(--dim); font-size:9px; letter-spacing:.1em; text-align:right; padding:7px 8px;
+.montbl th{color:var(--dim); font-size:10px; letter-spacing:.1em; text-align:right; padding:7px 8px;
   border-bottom:1px solid var(--edge); cursor:pointer; user-select:none;}
 .montbl th:first-child,.montbl td:first-child{text-align:left;}
 .montbl td{padding:8px; border-bottom:1px solid var(--edge); text-align:right; cursor:pointer;}
 .montbl tr:hover td{background:#FFFFFF06;}
-.heatgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(86px,1fr)); gap:6px; margin-top:8px;}
-.heattile{border-radius:6px; padding:9px 8px; text-align:center; border:1px solid var(--edge);}
-.heattile .hs{font-size:11px; font-weight:700; letter-spacing:.04em;}
-.heattile .hn{font-size:8px; color:#0008; letter-spacing:.04em; margin:1px 0;}
-.heattile .hp{font-size:11px; font-weight:600;}
+.heatgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:7px; margin-top:10px;}
+.heattile{border-radius:7px; padding:10px 8px; text-align:center; border:1px solid #FFFFFF14;
+  text-shadow:0 1px 3px #0009;}
+.heattile .hs{font-size:12px; font-weight:700; letter-spacing:.05em; color:#FFF;}
+.heattile .hn{font-size:9px; color:#FFFFFFB0; letter-spacing:.1em; margin:2px 0 3px;}
+.heattile .hp{font-size:12px; font-weight:700; color:#FFF;}
 .modal{position:fixed; inset:0; background:#000A; backdrop-filter:blur(4px); z-index:20;
   display:none; align-items:flex-start; justify-content:center; padding:40px 14px; overflow-y:auto;}
 .modal.on{display:flex;}
@@ -780,7 +781,7 @@ function renderHeat(){
   document.getElementById("heatgrid").innerHTML=SECTORS.map(([sym,name])=>{
     const q=heat[sym];const dp=q&&q.dp!=null?q.dp:null;
     const a=dp==null?0:Math.min(Math.abs(dp)/2,1);
-    const bg=dp==null?"var(--panel2)":dp>=0?`rgba(63,182,139,${(0.15+a*0.75).toFixed(2)})`:`rgba(224,92,92,${(0.15+a*0.75).toFixed(2)})`;
+    const bg=dp==null?"var(--panel2)":dp>=0?`rgba(47,140,105,${(0.45+a*0.55).toFixed(2)})`:`rgba(178,66,66,${(0.45+a*0.55).toFixed(2)})`;
     return `<div class="heattile" style="background:${bg}">
       <div class="hs">${sym}</div><div class="hn">${name}</div>
       <div class="hp num">${dp!=null?(dp>=0?"+":"")+dp.toFixed(2)+"%":"—"}</div></div>`;
@@ -932,7 +933,7 @@ function render(){
         ${sparkSVG(series)}
         <button class="ghost" onclick="event.preventDefault();removeSym('${sym}')">✕</button>
       </div>
-      <div class="dimtx expand-hint" style="margin-top:6px">tap for chart · signals · news</div>
+      <div class="expand-hint" style="margin-top:6px;color:var(--dim)">▾ chart · signals · news</div>
       </summary>
       <div style="margin-top:10px">${(st.sigs||[]).map(chipHTML).join("")}${status}</div>
       ${candleSVG(st.ohlc,600)}
