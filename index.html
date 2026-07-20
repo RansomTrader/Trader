@@ -147,6 +147,34 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 .sndbtn{background:none; border:1px solid var(--edge); border-radius:5px; color:var(--dim);
   font-family:var(--mono); font-size:10px; padding:3px 9px; cursor:pointer; letter-spacing:.06em;}
 .sndbtn.on{color:var(--amber); border-color:#E8A33D66;}
+
+/* ── layout + polish ── */
+.mkt-grid{display:grid; grid-template-columns:1fr; gap:0;}
+.addbar{margin-bottom:14px; max-width:460px;}
+.tape-col{order:-1;}
+#tape{margin-top:8px; max-height:240px; overflow-y:auto; overscroll-behavior:contain;}
+#tape::-webkit-scrollbar{width:4px;}
+#tape::-webkit-scrollbar-thumb{background:var(--edge2); border-radius:2px;}
+.tape-card{margin-bottom:12px;}
+@media(min-width:1000px){
+  .mkt-grid{grid-template-columns:minmax(0,1fr) 360px; gap:18px; align-items:start;}
+  .tape-col{order:0; position:sticky; top:14px;}
+  .tape-card{margin-bottom:0;}
+  #tape{max-height:calc(100vh - 150px);}
+  .wrap{max-width:1180px;}
+}
+@media(hover:hover){
+  .card{transition:border-color .18s;}
+  .card:hover{border-color:var(--edge2);}
+  button.line:hover{background:#E8A33D14;}
+  button.ghost:hover{color:var(--ink);}
+  nav button:hover{color:var(--ink);}
+  .news-item a:hover{color:var(--amber2);}
+}
+button.line,button.solid{min-height:40px;}
+.stat{border-radius:10px;}
+.expand-hint{font-size:10px; opacity:.7;}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 </style>
 </head>
 <body>
@@ -167,22 +195,28 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 
 <!-- ══ MARKET ══ -->
 <div class="tab on" id="tab-market">
-  <div class="row" style="margin-bottom:14px; max-width:440px;">
-    <input id="symInput" placeholder="Add ticker — AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
-    <button class="line" onclick="addSymbol()">Track</button>
-    <button class="ghost" onclick="addTop10()">+ top 10</button>
+  <div class="mkt-grid">
+    <div class="mkt-main">
+      <div class="row addbar">
+        <input id="symInput" placeholder="Add ticker — AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
+        <button class="line" onclick="addSymbol()">Track</button>
+        <button class="ghost" onclick="addTop10()">+ top 10</button>
+      </div>
+      <div id="cards"></div>
+      <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
+    </div>
+    <aside class="tape-col">
+      <div class="card tape-card" style="--vc:var(--info); padding:10px 14px;">
+        <details id="tapeBox" open>
+          <summary class="row" style="justify-content:space-between">
+            <span style="font-size:11px; letter-spacing:.16em; color:var(--info); font-weight:600">NEWS TAPE</span>
+            <span class="dimtx" id="tapeCount">—</span>
+          </summary>
+          <div id="tape"></div>
+        </details>
+      </div>
+    </aside>
   </div>
-  <div class="card" style="--vc:var(--info); padding:10px 14px; margin-bottom:12px">
-    <details id="tapeBox" open>
-      <summary class="row" style="justify-content:space-between">
-        <span style="font-size:11px; letter-spacing:.16em; color:var(--info); font-weight:600">NEWS TAPE</span>
-        <span class="dimtx" id="tapeCount">—</span>
-      </summary>
-      <div id="tape" style="margin-top:8px; max-height:300px; overflow-y:auto"></div>
-    </details>
-  </div>
-  <div id="cards"></div>
-  <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
 </div>
 
 <!-- ══ DESK ══ -->
@@ -520,24 +554,36 @@ function fmtTime(unix){
   const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
   return d.toDateString()===now.toDateString()?t:d.toLocaleDateString([],{month:"short",day:"numeric"})+" "+t;
 }
-const tapeSeen=new Set(); let tapeItems=[]; let tapeFirstRun=true;
+const tapeSeen=new Set(); let tapeItems=[]; let tapeFirstRun=true; let tapeCycle=0;
+const JUNK=/couple|marriage|relationship|parent|kids|psycholog|therapist|happiest|habits of|morning routine|self-made million|body language|red flag|diet|recipe|nutrition|workout|fitness|horoscope|royal famil|celebrit|dating|sleep|wellness|mindful|travel tips|best places to|quiz|holiday gift|deal of the day|coupon/i;
+function relevant(a){
+  if(a.related)return true;               // tied to a ticker → keep
+  return !JUNK.test(a.headline||"");      // otherwise drop lifestyle noise
+}
 async function pollNewsTape(){
   if(!cfg.fh)return;
   let fresh=0;
-  try{
-    const arts=await fh(`/news?category=general`);
-    for(const a of (arts||[]).slice(0,60)){
-      if(tapeSeen.has(a.id))continue;
-      tapeSeen.add(a.id);
-      tapeItems.push({...a,sym:(a.related||"").split(",")[0]||"",fresh:!tapeFirstRun});
-      if(!tapeFirstRun)fresh++;
-    }
-  }catch(e){}
+  const cats=["general"];
+  if(tapeCycle%4===0){cats.push("crypto","merger");}  // every 4th cycle widen
+  tapeCycle++;
+  for(const cat of cats){
+    try{
+      const arts=await fh(`/news?category=${cat}`);
+      for(const a of (arts||[]).slice(0,60)){
+        if(tapeSeen.has(a.id))continue;
+        if(!relevant(a))continue;
+        tapeSeen.add(a.id);
+        tapeItems.push({...a,sym:(a.related||"").split(",")[0]||"",fresh:!tapeFirstRun});
+        if(!tapeFirstRun)fresh++;
+      }
+    }catch(e){}
+  }
   tapeItems.sort((a,b)=>b.datetime-a.datetime);
   tapeItems=tapeItems.slice(0,50);
   if(fresh){
     toast(fresh+" new headline"+(fresh>1?"s":""));
     if(tapeItems.some(a=>a.fresh&&a.sym&&symbols.includes(a.sym)))newsChime();
+    else newsBlip();
   }
   tapeFirstRun=false;
   renderTape();
@@ -575,6 +621,9 @@ function beep(freq,dur){
   o.start();o.stop(audioCtx.currentTime+dur);
 }
 function newsChime(){beep(1174,0.09);setTimeout(()=>beep(1568,0.14),110);}
+function newsBlip(){beep(740,0.05);}
+function orderChime(){beep(523,0.07);setTimeout(()=>beep(784,0.12),90);}
+function fillChime(){beep(988,0.08);setTimeout(()=>beep(1319,0.16),100);}
 document.addEventListener("pointerdown",ensureAudio,{once:true});
 function renderStrip(){
   const el=document.getElementById("strip");
@@ -802,6 +851,7 @@ function submitOrder(){
   paper.orders.push(o);savePaper();
   if(!symbols.includes(sym)){symbols.push(sym);LS.set("syms",symbols);state[sym]={};queueCandles(sym);loadEarnings(sym);wsSub(sym);}
   checkFills();renderDesk();
+  orderChime();
   toast(type==="mkt"?"Market order submitted":"Limit resting at "+limit);
 }
 function crossable(o,px){
@@ -842,7 +892,7 @@ function checkFills(){
       if(p.qty===0)delete paper.positions[o.sym];
     }
     o.status="filled";o.filledPx=px;o.filledAt=new Date().toISOString();
-    changed=true;
+    changed=true;fillChime();toast(o.sym+" "+o.act+" filled @ "+px.toFixed(2));
   }
   paper.orders=paper.orders.filter(o=>o.status==="open"||Date.now()-o.id<60000); // keep open + last minute of fills for visibility
   if(changed){savePaper();renderDesk();renderJournal();}
