@@ -507,7 +507,7 @@ async function pumpTd(){
     const d=await r.json();
     if(d.status==="error")throw new Error(d.message||"td-error");
     const vals=(d.values||[]).slice().reverse();
-    const parsed=vals.map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close}));
+    const parsed=vals.map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close,v:+v.volume||0}));
     if(tf==="1day"){
       state[sym].ohlc=parsed;
       const yr=parsed.slice(-252);
@@ -637,21 +637,31 @@ function sparkSVG(data,w=120,h=36){
     <polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"/>
     <circle cx="${last.split(",")[0]}" cy="${last.split(",")[1]}" r="2.2" fill="${c}"/></svg>`;
 }
-function candleSVG(ohlc,w,caption,h=170){
+function candleSVG(ohlc,w,caption,h=200){
   if(!ohlc||ohlc.length<10)return "";
   const d=ohlc.slice(-60);
   const closes=ohlc.map(x=>x.c);
   const s20=smaSeries(closes,20).slice(-60), s50=smaSeries(closes,50).slice(-60);
   const hi=Math.max(...d.map(x=>x.h)), lo=Math.min(...d.map(x=>x.l)), rg=(hi-lo)||1;
   const pad=6, cw=w/d.length;
-  const Y=v=>pad+(1-(v-lo)/rg)*(h-2*pad);
-  let bars="";
+  const PH=h-52;                       // price pane height
+  const VY=PH+8, VH=h-VY-2;            // volume pane
+  const Y=v=>pad+(1-(v-lo)/rg)*(PH-2*pad);
+  const vols=d.map(x=>x.v||0);
+  const vmax=Math.max(...vols,1);
+  const vavg=vols.reduce((a,b)=>a+b,0)/vols.length;
+  let bars="",vbars="";
   d.forEach((x,i)=>{
     const cx=i*cw+cw/2;
     const col=x.c>=x.o?"var(--up)":"var(--dn)";
     const bt=Y(Math.max(x.o,x.c)), bb=Y(Math.min(x.o,x.c));
     bars+=`<line x1="${cx.toFixed(1)}" y1="${Y(x.h).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${Y(x.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>
     <rect x="${(cx-cw*0.3).toFixed(1)}" y="${bt.toFixed(1)}" width="${(cw*0.6).toFixed(1)}" height="${Math.max(bb-bt,1).toFixed(1)}" fill="${col}"/>`;
+    if(x.v){
+      const vh=Math.max((x.v/vmax)*VH,1);
+      const op=x.v>vavg*1.5?"0.95":"0.4";
+      vbars+=`<rect x="${(cx-cw*0.3).toFixed(1)}" y="${(VY+VH-vh).toFixed(1)}" width="${(cw*0.6).toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity="${op}"/>`;
+    }
   });
   const line=(arr,col)=>{
     if(arr.length<2)return "";
@@ -659,12 +669,16 @@ function candleSVG(ohlc,w,caption,h=170){
     const pts=arr.map((v,i)=>`${((i+off)*cw+cw/2).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
     return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.2" opacity="0.85"/>`;
   };
+  const fmtV=v=>v>=1e9?(v/1e9).toFixed(1)+"B":v>=1e6?(v/1e6).toFixed(1)+"M":v>=1e3?(v/1e3).toFixed(0)+"K":v.toFixed(0);
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;margin-top:6px">
     ${bars}${line(s20,"var(--amber)")}${line(s50,"var(--info)")}
+    <line x1="0" y1="${(PH+4).toFixed(1)}" x2="${w}" y2="${(PH+4).toFixed(1)}" stroke="var(--edge)" stroke-width="1"/>
+    ${vbars}
   </svg>
   <div class="dimtx" style="display:flex;gap:14px;margin-top:4px;flex-wrap:wrap">
     <span>${caption||"60 sessions"}</span><span class="a">— SMA20</span><span style="color:var(--info)">— SMA50</span>
-    <span class="num">H ${hi.toFixed(2)} · L ${lo.toFixed(2)}</span></div>`;
+    <span class="num">H ${hi.toFixed(2)} · L ${lo.toFixed(2)}</span>
+    ${vavg?`<span class="num">avg vol ${fmtV(vavg)} · bright bars = 1.5×+</span>`:""}</div>`;
 }
 function meterHTML(score){
   let seg="";
