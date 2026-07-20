@@ -135,9 +135,18 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 .empty-state b{color:var(--ink); font-family:var(--disp); font-size:14px; display:block; margin-bottom:4px;}
 
 /* ── bloomberg layer ── */
-.strip{display:flex; gap:18px; overflow-x:auto; padding:8px 2px 10px; margin-bottom:10px;
-  border-bottom:1px solid var(--edge); scrollbar-width:none; white-space:nowrap;}
-.strip::-webkit-scrollbar{display:none;}
+.strip{overflow:hidden; padding:8px 0 10px; margin-bottom:10px;
+  border-bottom:1px solid var(--edge); white-space:nowrap;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 4%,#000 96%,transparent);}
+.strip-track{display:inline-flex; will-change:transform; animation:marq 40s linear infinite;}
+.strip-half{display:inline-flex; gap:22px; padding-right:22px;}
+@keyframes marq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.strip:hover .strip-track{animation-play-state:paused;}
+@media (prefers-reduced-motion:reduce){
+  .strip{overflow-x:auto;}
+  .strip-track{animation:none;}
+}
 .strip .it{font-size:12px; display:inline-flex; gap:7px; align-items:baseline; flex:none;}
 .strip .s{color:var(--amber); font-weight:600; letter-spacing:.04em;}
 @keyframes flashUp{0%{background:#3FB68B33}100%{background:transparent}}
@@ -384,7 +393,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
 <footer>
   RSI-14 · SMA 20/50 · MACD 12-26-9 · Bollinger 20,2 · ATR-14 · 52-week range. Meter = sum of signal directions.
-  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v11</span>
+  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v12</span>
 </footer>
 </div>
 <div class="modal" id="desModal" onclick="if(event.target===this)this.classList.remove('on')">
@@ -792,332 +801,30 @@ function newsBlip(){beep(740,0.05);}
 function orderChime(){beep(523,0.07);setTimeout(()=>beep(784,0.12),90);}
 function fillChime(){beep(988,0.08);setTimeout(()=>beep(1319,0.16),100);}
 document.addEventListener("pointerdown",ensureAudio,{once:true});
+let stripSig="";
 function renderStrip(){
   const el=document.getElementById("strip");
-  el.style.display=symbols.length?"flex":"none";
-  el.innerHTML=symbols.map(sym=>{
-    const st=state[sym]||{};const q=st.quote;
-    const cls=q&&q.dp!=null?(q.dp>=0?"u":"d"):"f";
-    const fl=st.flash||"";
-    return `<span class="it ${fl}"><span class="s">${sym}</span><span class="num ${cls}">${q&&q.c?q.c.toFixed(2):"—"}</span><span class="num ${cls}" style="font-size:10px">${q&&q.dp!=null?(q.dp>=0?"+":"")+q.dp.toFixed(2)+"%":""}</span></span>`;
-  }).join("");
-}
-
-/* ══ DES pages ══ */
-const desCache={};
-async function openDES(sym){
-  if(isCrypto(sym)){toast("DES is for equities — no filings for crypto");return;}
-  const m=document.getElementById("desModal"),b=document.getElementById("desBody");
-  m.classList.add("on");
-  b.innerHTML=`<div class="skel" style="height:20px;width:60%"></div><div style="height:12px"></div><div class="skel" style="height:120px"></div>`;
-  try{
-    if(!desCache[sym]){
-      const [prof,met]=await Promise.all([fh(`/stock/profile2?symbol=${sym}`),fh(`/stock/metric?symbol=${sym}&metric=all`)]);
-      desCache[sym]={prof,met:met.metric||{}};
-    }
-    const {prof,met}=desCache[sym];
-    const fmt=(v,suf="")=>v==null||isNaN(v)?"—":(+v).toLocaleString(undefined,{maximumFractionDigits:2})+suf;
-    const mcap=prof.marketCapitalization?(prof.marketCapitalization>=1e6?(prof.marketCapitalization/1e6).toFixed(2)+"T":prof.marketCapitalization>=1000?(prof.marketCapitalization/1000).toFixed(1)+"B":prof.marketCapitalization.toFixed(0)+"M"):"—";
-    const rows=[
-      ["Exchange",prof.exchange||"—"],["Industry",prof.finnhubIndustry||"—"],
-      ["Market cap",mcap],["Shares out",fmt(prof.shareOutstanding,"M")],
-      ["P/E (TTM)",fmt(met.peBasicExclExtraTTM??met.peTTM)],["EPS (TTM)",fmt(met.epsBasicExclExtraItemsTTM??met.epsTTM)],
-      ["Beta",fmt(met.beta)],["Div yield",fmt(met.dividendYieldIndicatedAnnual,"%")],
-      ["52W high",fmt(met["52WeekHigh"])],["52W low",fmt(met["52WeekLow"])],
-      ["Gross margin",fmt(met.grossMarginTTM,"%")],["Net margin",fmt(met.netProfitMarginTTM,"%")],
-      ["Rev growth (TTM)",fmt(met.revenueGrowthTTMYoy,"%")],["IPO",prof.ipo||"—"],
-    ];
-    b.innerHTML=`<div class="row" style="justify-content:space-between;margin-bottom:6px">
-      <div><span class="sym-name" style="font-size:20px">${sym}</span>
-        <span class="dimtx" style="display:block">${prof.name||""}</span></div>
-      ${prof.logo?`<img src="${prof.logo}" width="36" height="36" style="border-radius:8px" onerror="this.remove()">`:""}
-    </div>
-    ${rows.map(r=>`<div class="des-row"><span class="dk">${r[0]}</span><span class="num">${r[1]}</span></div>`).join("")}
-    ${prof.weburl?`<div style="margin-top:10px"><a href="${prof.weburl}" target="_blank" rel="noopener" style="color:var(--info);font-size:11px">${prof.weburl}</a></div>`:""}
-    <div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('desModal').classList.remove('on')">Close</button></div>`;
-  }catch(e){b.innerHTML=`<div class="d">DES load failed: ${e.message}</div><button class="ghost" onclick="document.getElementById('desModal').classList.remove('on')">close</button>`;}
-}
-
-/* ══ monitor view ══ */
-let monMode=LS.get("mon",false), monSort={k:"score",asc:false}, forceOpen=null;
-function toggleMon(){monMode=!monMode;LS.set("mon",monMode);paintMonBtn();render();}
-function paintMonBtn(){const b=document.getElementById("monBtn");b.textContent=monMode?"▤ CARDS":"⊞ MON";}
-function sigVal(st,k){const x=(st.sigs||[]).find(s=>s.k===k);return x?x.v:"—";}
-function sigDir(st,k){const x=(st.sigs||[]).find(s=>s.k===k);return x?x.dir:0;}
-function monRow(sym){
-  const st=state[sym]||{};const q=st.quote;
-  return {sym,last:q&&q.c?q.c:null,chg:q&&q.dp!=null?q.dp:null,
-    rsi:parseFloat(sigVal(st,"RSI"))||null,smaD:sigDir(st,"SMA 20/50"),macdD:sigDir(st,"MACD"),
-    score:scoreOf(st.sigs),flash:st.flash};
-}
-function renderMonitor(){
-  const rows=symbols.map(monRow);
-  const k=monSort.k;
-  rows.sort((a,b)=>{const av=a[k]??-1e9,bv=b[k]??-1e9;return monSort.asc?av-bv:bv-av;});
-  const dirTxt=d=>d>0?`<span class="u">▲</span>`:d<0?`<span class="d">▼</span>`:`<span class="f">·</span>`;
-  const hdr=(label,key)=>`<th onclick="monSortBy('${key}')">${label}${monSort.k===key?(monSort.asc?" ↑":" ↓"):""}</th>`;
-  return `<div class="card" style="--vc:var(--amber);padding:6px 10px"><table class="montbl">
-    <tr>${hdr("SYM","sym")}${hdr("LAST","last")}${hdr("CHG%","chg")}${hdr("RSI","rsi")}<th>SMA</th><th>MACD</th>${hdr("SCORE","score")}</tr>
-    ${rows.map(r=>`<tr onclick="monOpen('${r.sym}')">
-      <td class="${r.flash||""}"><b style="color:var(--amber)">${r.sym}</b></td>
-      <td class="num ${r.flash||""}">${r.last!=null?r.last.toFixed(2):"—"}</td>
-      <td class="num ${r.chg==null?"f":r.chg>=0?"u":"d"}">${r.chg!=null?(r.chg>=0?"+":"")+r.chg.toFixed(2):"—"}</td>
-      <td class="num ${r.rsi==null?"f":r.rsi>70?"d":r.rsi<30?"u":""}">${r.rsi!=null?r.rsi.toFixed(0):"—"}</td>
-      <td>${dirTxt(r.smaD)}</td><td>${dirTxt(r.macdD)}</td>
-      <td class="num" style="color:${r.score>0?"var(--up)":r.score<0?"var(--dn)":"var(--flat)"};font-weight:700">${r.score>0?"+":""}${r.score}</td>
-    </tr>`).join("")}
-  </table></div>`;
-}
-function monSortBy(k){monSort.asc=monSort.k===k?!monSort.asc:false;monSort.k=k;render();}
-function monOpen(sym){monMode=false;LS.set("mon",false);paintMonBtn();forceOpen=sym;render();
-  setTimeout(()=>{const el=document.querySelector(`details[data-sym="${sym}"]`);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},50);}
-
-/* ══ sector heatmap ══ */
-const SECTORS=[["XLK","TECH","Technology"],["XLF","FINL","Financials"],["XLE","ENRG","Energy"],["XLV","HLTH","Health Care"],["XLY","DISC","Cons. Discretionary"],["XLP","STPL","Cons. Staples"],["XLI","INDU","Industrials"],["XLU","UTIL","Utilities"],["XLB","MATL","Materials"],["XLRE","REAL","Real Estate"],["XLC","COMM","Communications"]];
-const heat={}; let heatTimer=null;
-async function heatPoll(){
-  if(!cfg.fh)return;
-  if(!document.getElementById("heatBox").open){clearTimeout(heatTimer);heatTimer=null;return;}
-  for(const [sym] of SECTORS){
-    try{heat[sym]=await fh(`/quote?symbol=${sym}`);}catch(e){}
-  }
-  renderHeat();
-  document.getElementById("heatMeta").textContent="60s poll · "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  clearTimeout(heatTimer);heatTimer=setTimeout(heatPoll,60000);
-}
-function splitTree(items,x,y,w,h,out){
-  if(!items.length)return;
-  if(items.length===1){out.push({x,y,w,h,it:items[0]});return;}
-  const total=items.reduce((a,b)=>a+b.wt,0);
-  let acc=0,cut=1;
-  for(let i=0;i<items.length-1;i++){acc+=items[i].wt;if(acc>=total/2){cut=i+1;break;}}
-  const A=items.slice(0,cut),B=items.slice(cut);
-  const fA=A.reduce((a,b)=>a+b.wt,0)/total;
-  if(w>=h){splitTree(A,x,y,w*fA,h,out);splitTree(B,x+w*fA,y,w*(1-fA),h,out);}
-  else{splitTree(A,x,y,w,h*fA,out);splitTree(B,x,y+h*fA,w,h*(1-fA),out);}
-}
-function renderHeat(){
-  const W=600,H=300,G=2;
-  const items=SECTORS.map(([sym,shortN,fullN])=>{
-    const q=heat[sym];const dp=q&&q.dp!=null?q.dp:null;
-    return {sym,shortN,fullN,dp,wt:Math.max(dp==null?0.15:Math.abs(dp),0.15)};
-  }).sort((a,b)=>b.wt-a.wt);
-  const tiles=[];splitTree(items,0,0,W,H,tiles);
-  const rects=tiles.map(t=>{
-    const {dp}=t.it;
-    const a=dp==null?0:Math.min(Math.abs(dp)/2,1);
-    const al=(0.42+a*0.5).toFixed(2);
-    const fill=dp==null?"#141B26":dp>=0?`rgba(34,110,84,${al})`:`rgba(148,56,58,${al})`;
-    const cx=t.x+t.w/2, cy=t.y+t.h/2;
-    const small=Math.min(t.w,t.h);
-    const fs=Math.max(9.5,Math.min(15,small/5.6));
-    const fits=txt=>txt.length*fs*0.66<t.w-16;
-    const name=fits(t.it.fullN)?t.it.fullN:fits(t.it.shortN)?t.it.shortN:t.it.sym;
-    const fs2=fs*0.78;
-    const showPct=small>46&&t.h>fs+fs2+16&&t.it.dp!=null;
-    const showSym=name!==t.it.sym&&small>68&&t.h>fs+fs2*2+24;
-    return `<rect x="${(t.x+G/2).toFixed(1)}" y="${(t.y+G/2).toFixed(1)}" width="${Math.max(t.w-G,1).toFixed(1)}" height="${Math.max(t.h-G,1).toFixed(1)}" rx="3" fill="${fill}" stroke="#0A0E14" stroke-width="1"/>
-    <text class="ht-sym" x="${cx.toFixed(1)}" y="${(showPct?cy-(showSym?fs2*0.8:3):cy+fs*0.35).toFixed(1)}" font-size="${fs.toFixed(1)}" text-anchor="middle">${name}</text>
-    ${showPct?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2+(showSym?1:5)).toFixed(1)}" font-size="${fs2.toFixed(1)}" text-anchor="middle">${(t.it.dp>=0?"+":"")+t.it.dp.toFixed(2)}%</text>`:""}
-    ${showSym?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2*2+10).toFixed(1)}" font-size="${(fs2*0.85).toFixed(1)}" text-anchor="middle" opacity="0.55">${t.it.sym}</text>`:""}`;
-  }).join("");
-  document.getElementById("heatwrap").innerHTML=
-    `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>
-     <div class="dimtx" style="margin-top:6px;letter-spacing:.04em"><span style="color:#3E9B77">▪ advancing</span>&ensp;<span style="color:#B25658">▪ declining</span>&ensp;·&ensp;area = magnitude of move</div>`;
-}
-
-/* ══ SEC EDGAR filings ══ */
-const PROXY=u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u);
-let useProxy={sec:false,st:false};
-async function relayFetch(url,kind){
-  if(!useProxy[kind]){
-    try{const r=await fetch(url);if(r.ok)return r;throw 0;}
-    catch(e){useProxy[kind]=true;}
-  }
-  return fetch(PROXY(url));
-}
-const CIK_STATIC={AAPL:"0000320193",MSFT:"0000789019",NVDA:"0001045810",TSLA:"0001318605",AMZN:"0001018724",META:"0001326801",MSTR:"0001050446"};
-let cikMap=null, edgarSeen=new Set(), edgarStatus="";
-const EDGAR_FORMS=new Set(["8-K","10-K","10-Q","S-1","S-1/A","SC 13D","SC 13G","6-K","20-F","424B4","424B5"]);
-async function loadCikMap(){
-  if(cikMap!==null)return;
-  cikMap={...CIK_STATIC};edgarStatus="ok";
-  try{
-    const r=await relayFetch("https://www.sec.gov/files/company_tickers.json","sec");
-    const d=await r.json();
-    Object.values(d).forEach(e=>{if(!cikMap[e.ticker])cikMap[e.ticker]=String(e.cik_str).padStart(10,"0");});
-  }catch(e){}
-}
-async function pollEdgar(){
+  el.style.display=symbols.length?"block":"none";
   if(!symbols.length)return;
-  await loadCikMap();
-  if(edgarStatus!=="ok")return;
-  const cutoff=new Date(Date.now()-3*86400e3).toISOString().slice(0,10);
-  let fresh=0;
-  for(const sym of symbols){
-    if(isCrypto(sym))continue;
-    const cik=cikMap[sym];if(!cik)continue;
-    try{
-      const r=await relayFetch(`https://data.sec.gov/submissions/CIK${cik}.json`,"sec");
-      const d=await r.json();
-      const rec=d.filings&&d.filings.recent;if(!rec)continue;
-      for(let i=0;i<Math.min(rec.form.length,20);i++){
-        const form=rec.form[i],date=rec.filingDate[i],acc=rec.accessionNumber[i];
-        if(date<cutoff)break;
-        if(!EDGAR_FORMS.has(form))continue;
-        const key=sym+acc;
-        if(edgarSeen.has(key))continue;
-        edgarSeen.add(key);
-        const accNo=acc.replace(/-/g,"");
-        const doc=rec.primaryDocument[i]||"";
-        const url=`https://www.sec.gov/Archives/edgar/data/${+cik}/${accNo}/${doc}`;
-        const desc={"8-K":"current report (material event)","10-K":"annual report","10-Q":"quarterly report","S-1":"IPO registration","S-1/A":"IPO registration (amended)","SC 13D":"activist stake >5%","SC 13G":"passive stake >5%","6-K":"foreign issuer report","20-F":"foreign annual report","424B4":"offering prospectus","424B5":"offering prospectus"}[form]||form;
-        tapeItems.push({id:key,sym,headline:form+" — "+desc,url,datetime:Math.floor(new Date(date+"T16:00:00").getTime()/1000),source:"SEC EDGAR",tone:"",filing:true,fresh:!edgarFirstRun});
-        if(!edgarFirstRun)fresh++;
-      }
-    }catch(e){}
+  const sig=symbols.join(",");
+  if(sig!==stripSig){
+    stripSig=sig;
+    const half=symbols.map(sym=>`<span class="it" data-s="${sym}"><span class="s">${sym}</span><span class="px num f">—</span><span class="pc num f" style="font-size:10px"></span></span>`).join("");
+    el.innerHTML=`<div class="strip-track" style="animation-duration:${Math.max(24,symbols.length*4)}s"><span class="strip-half">${half}</span><span class="strip-half">${half}</span></div>`;
   }
-  if(fresh){tapeItems.sort((a,b)=>b.datetime-a.datetime);newsChime();toast("⚠ "+fresh+" new SEC filing"+(fresh>1?"s":""));renderTape();}
-  edgarFirstRun=false;
-}
-let edgarFirstRun=true;
-setInterval(pollEdgar,120000);
-
-/* ══ StockTwits crowd sentiment ══ */
-async function loadCrowd(sym){
-  try{
-    const stSym=isCrypto(sym)?sym+".X":sym;
-    const r=await relayFetch(`https://api.stocktwits.com/api/2/streams/symbol/${stSym}.json`,"st");
-    const d=await r.json();
-    const msgs=(d.messages||[]).slice(0,30);
-    let bull=0,bear=0;
-    msgs.forEach(m=>{
-      const s2=m.entities&&m.entities.sentiment&&m.entities.sentiment.basic;
-      if(s2==="Bullish")bull++;else if(s2==="Bearish")bear++;
+  symbols.forEach(sym=>{
+    const st=state[sym]||{};const q=st.quote;
+    el.querySelectorAll(`.it[data-s="${sym}"]`).forEach(it=>{
+      const px=it.querySelector(".px"),pc=it.querySelector(".pc");
+      const cls=q&&q.dp!=null?(q.dp>=0?"u":"d"):"f";
+      px.textContent=q&&q.c?q.c.toFixed(2):"—";
+      px.className="px num "+cls;
+      pc.textContent=q&&q.dp!=null?(q.dp>=0?"+":"")+q.dp.toFixed(2)+"%":"";
+      pc.className="pc num "+cls;
+      if(st.flash){it.classList.remove("fu","fd");void it.offsetWidth;it.classList.add(st.flash);}
     });
-    state[sym].crowd={bull,bear,n:bull+bear,total:msgs.length};
-    render();
-  }catch(e){state[sym].crowd={err:true};}
+  });
 }
-function crowdHTML(st){
-  const c=st.crowd;
-  if(!c||c.err||!c.n)return "";
-  const pct=Math.round(c.bull/c.n*100);
-  const col=pct>=60?"var(--up)":pct<=40?"var(--dn)":"var(--flat)";
-  return `<div style="margin-top:8px">
-    <span class="dimtx" style="letter-spacing:.1em">CROWD</span>
-    <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
-      <div style="flex:1;height:5px;background:#E05C5C40;border-radius:3px;overflow:hidden;max-width:180px">
-        <div style="width:${pct}%;height:100%;background:${col}"></div></div>
-      <span class="num" style="font-size:11px;color:${col}">${pct}% bullish</span>
-      <span class="dimtx">${c.n} tagged / ${c.total} msgs · StockTwits</span>
-    </div></div>`;
-}
-
-/* ══ alerts ══ */
-let alerts=LS.get("alerts",[]);
-function alertChime(){beep(1047,0.08);setTimeout(()=>beep(1047,0.08),140);setTimeout(()=>beep(1047,0.14),280);}
-function addAlert(sym,kind,op,val){
-  alerts.push({id:Date.now(),sym,kind,op,val,armed:true});
-  LS.set("alerts",alerts);
-  if(!symbols.includes(sym)){symbols.push(sym);LS.set("syms",symbols);state[sym]={};queueCandles(sym);loadEarnings(sym);wsSub(sym);}
-  toast("⚑ alert set: "+sym+" "+kind+" "+op+" "+val);
-}
-function checkAlerts(){
-  let hit=false;
-  for(const al of alerts){
-    if(!al.armed)continue;
-    const st=state[al.sym];if(!st)continue;
-    let cur=null;
-    if(al.kind==="px")cur=st.quote&&st.quote.c;
-    else if(al.kind==="RSI")cur=parseFloat(sigVal(st,"RSI"))||null;
-    if(cur==null)continue;
-    if((al.op===">"&&cur>al.val)||(al.op==="<"&&cur<al.val)){
-      al.armed=false;hit=true;
-      toast("⚑ "+al.sym+" "+al.kind+" "+al.op+" "+al.val+" — now "+(+cur).toFixed(2));
-    }
-  }
-  if(hit){LS.set("alerts",alerts);alertChime();}
-}
-function showAlerts(){
-  const m=document.getElementById("listModal"),b=document.getElementById("listBody");
-  m.classList.add("on");
-  b.innerHTML=`<div class="sym-name" style="font-size:17px;margin-bottom:8px">Alerts</div>`+
-    (alerts.length?alerts.map(a=>`<div class="alert-row">
-      <span>${a.armed?"⚑":"✓"} <b style="color:var(--amber)">${a.sym}</b> ${a.kind} ${a.op} ${a.val}${a.armed?"":" <span class='u'>TRIGGERED</span>"}</span>
-      <button class="ghost" onclick="alerts=alerts.filter(x=>x.id!==${a.id});LS.set('alerts',alerts);showAlerts();">delete</button>
-    </div>`).join(""):`<div class="dimtx">No alerts. Command line: ALRT NVDA &gt; 190 or ALRT SPY RSI &lt; 30</div>`)+
-    `<div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('listModal').classList.remove('on')">Close</button></div>`;
-}
-
-/* ══ command line ══ */
-function showHelp(){
-  const m=document.getElementById("listModal"),b=document.getElementById("listBody");
-  m.classList.add("on");
-  b.innerHTML=`<div class="sym-name" style="font-size:17px;margin-bottom:8px">Commands</div>
-  ${[["NVDA","track + jump to card"],["NVDA GP","open chart panel"],["NVDA DES","company description"],["NVDA N","headlines"],["NVDA T","route to sizer"],["ALRT NVDA > 190","price alert"],["ALRT SPY RSI < 30","indicator alert"],["ALRT","list alerts"],["MON","monitor ⇄ cards"],["HEAT","sector heatmap"],["HELP","this screen"]].map(r=>`<div class="des-row"><span style="color:var(--amber);font-weight:600">${r[0]}</span><span class="dimtx">${r[1]}</span></div>`).join("")}
-  <div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('listModal').classList.remove('on')">Close</button></div>`;
-}
-function goMarketTab(){document.querySelector('nav button[data-tab=market]').click();}
-function ensureTracked(sym){
-  if(symbols.includes(sym))return;
-  symbols.push(sym);LS.set("syms",symbols);state[sym]={};
-  queueCandles(sym);loadEarnings(sym);wsSub(sym);poll();
-}
-function runCmd(raw){
-  const p=raw.trim().toUpperCase().split(/\s+/).filter(Boolean);
-  if(!p.length)return;
-  const [a,b2,c,d]=p;
-  if(a==="HELP")return showHelp();
-  if(a==="MON")return toggleMon();
-  if(a==="HEAT"){goMarketTab();const hb=document.getElementById("heatBox");hb.open=true;heatPoll();hb.scrollIntoView({behavior:"smooth"});return;}
-  if(a==="ALRT"){
-    if(!b2)return showAlerts();
-    if(c==="RSI"&&(d===">"||d==="<")&&p[4]!=null&&!isNaN(+p[4]))return addAlert(b2,"RSI",d,+p[4]);
-    if((c===">"||c==="<")&&p[3]!=null&&!isNaN(+p[3]))return addAlert(b2,"px",c,+p[3]);
-    return toast("format: ALRT SYM > 190 or ALRT SYM RSI < 30");
-  }
-  // symbol commands
-  const sym=a.replace(/[^A-Z.]/g,"");
-  if(!sym)return;
-  if(!cfg.fh)return toast("Set your Finnhub key in SETUP first");
-  ensureTracked(sym);
-  const fn=b2||"GP";
-  if(fn==="DES")return openDES(sym);
-  if(fn==="T"){
-    document.querySelector('nav button[data-tab=sizer]').click();
-    const sel=document.getElementById("szSym");
-    sel.innerHTML=`<option value="">manual entry</option>`+symbols.map(s2=>`<option ${s2===sym?"selected":""}>${s2}</option>`).join("");
-    toast(sym+" routed to sizer — tap suggest ATR stop");return;
-  }
-  // GP / N: cards mode, open, scroll
-  goMarketTab();monMode=false;LS.set("mon",false);paintMonBtn();forceOpen=sym;render();
-  setTimeout(()=>{const el=document.querySelector(`details[data-sym="${sym}"]`);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},60);
-}
-document.getElementById("cmdl").addEventListener("keydown",e=>{
-  if(e.key==="Enter"){runCmd(e.target.value);e.target.value="";}
-});
-document.addEventListener("keydown",e=>{
-  if(e.key==="/"&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="SELECT"){
-    e.preventDefault();document.getElementById("cmdl").focus();
-  }
-});
-
-/* ══ quad layout ══ */
-function layoutQuad(){
-  const desk=document.getElementById("tab-portfolio");
-  const navBtn=document.querySelector('nav button[data-tab=portfolio]');
-  const wide=window.innerWidth>=1400;
-  if(wide&&desk.parentElement.id!=="quadCol"){
-    document.getElementById("quadCol").appendChild(desk);
-    desk.classList.add("on","embedded");navBtn.classList.add("hidden");
-    if(navBtn.classList.contains("on"))goMarketTab();
-  }else if(!wide&&desk.classList.contains("embedded")){
-    document.getElementById("tab-sizer").before(desk);
-    desk.classList.remove("embedded","on");navBtn.classList.remove("hidden");
-  }
-}
-window.addEventListener("resize",layoutQuad);
 
 function earnBadge(st){
   if(!st.earnDate)return "";
