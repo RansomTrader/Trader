@@ -200,8 +200,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 .montbl td{padding:8px; border-bottom:1px solid var(--edge); text-align:right; cursor:pointer;}
 .montbl tr:hover td{background:#FFFFFF06;}
 #heatwrap svg{display:block; width:100%; height:auto; border-radius:8px;}
-.ht-sym{font-family:var(--disp); font-weight:700; fill:#FFF; paint-order:stroke; stroke:#0007; stroke-width:2px;}
-.ht-pct{font-family:var(--mono); font-weight:600; fill:#FFFFFFE0; paint-order:stroke; stroke:#0007; stroke-width:1.6px;}
+.ht-sym{font-family:var(--mono); font-weight:500; fill:#F2F5F8; letter-spacing:.09em; text-transform:uppercase; paint-order:stroke; stroke:#0005; stroke-width:1px;}
+.ht-pct{font-family:var(--mono); font-weight:400; fill:#FFFFFFCC; letter-spacing:.03em; paint-order:stroke; stroke:#0004; stroke-width:0.8px;}
 .heatgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:7px; margin-top:10px;}
 .heattile{border-radius:7px; padding:10px 8px; text-align:center; border:1px solid #FFFFFF14;
   text-shadow:0 1px 3px #0009;}
@@ -792,7 +792,7 @@ function splitTree(items,x,y,w,h,out){
   else{splitTree(A,x,y,w,h*fA,out);splitTree(B,x,y+h*fA,w,h*(1-fA),out);}
 }
 function renderHeat(){
-  const W=600,H=300,G=3;
+  const W=600,H=300,G=2;
   const items=SECTORS.map(([sym,shortN,fullN])=>{
     const q=heat[sym];const dp=q&&q.dp!=null?q.dp:null;
     return {sym,shortN,fullN,dp,wt:Math.max(dp==null?0.15:Math.abs(dp),0.15)};
@@ -801,24 +801,24 @@ function renderHeat(){
   const rects=tiles.map(t=>{
     const {dp}=t.it;
     const a=dp==null?0:Math.min(Math.abs(dp)/2,1);
-    const al=(0.5+a*0.5).toFixed(2);
-    const fill=dp==null?"#161D28":dp>=0?`rgba(20,184,166,${al})`:`rgba(167,63,220,${al})`;
+    const al=(0.42+a*0.5).toFixed(2);
+    const fill=dp==null?"#141B26":dp>=0?`rgba(34,110,84,${al})`:`rgba(148,56,58,${al})`;
     const cx=t.x+t.w/2, cy=t.y+t.h/2;
     const small=Math.min(t.w,t.h);
-    const fs=Math.max(10.5,Math.min(19,small/4.6));
-    const fits=txt=>txt.length*fs*0.58<t.w-14;
+    const fs=Math.max(9.5,Math.min(15,small/5.6));
+    const fits=txt=>txt.length*fs*0.66<t.w-16;
     const name=fits(t.it.fullN)?t.it.fullN:fits(t.it.shortN)?t.it.shortN:t.it.sym;
-    const fs2=fs*0.68;
+    const fs2=fs*0.78;
     const showPct=small>46&&t.h>fs+fs2+16&&t.it.dp!=null;
-    const showSym=name!==t.it.sym&&small>62&&t.h>fs+fs2*2+22;
-    return `<rect x="${(t.x+G/2).toFixed(1)}" y="${(t.y+G/2).toFixed(1)}" width="${Math.max(t.w-G,1).toFixed(1)}" height="${Math.max(t.h-G,1).toFixed(1)}" rx="6" fill="${fill}" stroke="#0A0E14" stroke-width="1"/>
-    <text class="ht-sym" x="${cx.toFixed(1)}" y="${(showPct?cy-(showSym?fs2*0.7:2):cy+fs*0.35).toFixed(1)}" font-size="${fs.toFixed(1)}" text-anchor="middle">${name}</text>
-    ${showPct?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2+(showSym?0:4)).toFixed(1)}" font-size="${fs2.toFixed(1)}" text-anchor="middle">${(t.it.dp>=0?"+":"")+t.it.dp.toFixed(2)}%</text>`:""}
-    ${showSym?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2*2+8).toFixed(1)}" font-size="${(fs2*0.85).toFixed(1)}" text-anchor="middle" opacity="0.75">${t.it.sym}</text>`:""}`;
+    const showSym=name!==t.it.sym&&small>68&&t.h>fs+fs2*2+24;
+    return `<rect x="${(t.x+G/2).toFixed(1)}" y="${(t.y+G/2).toFixed(1)}" width="${Math.max(t.w-G,1).toFixed(1)}" height="${Math.max(t.h-G,1).toFixed(1)}" rx="3" fill="${fill}" stroke="#0A0E14" stroke-width="1"/>
+    <text class="ht-sym" x="${cx.toFixed(1)}" y="${(showPct?cy-(showSym?fs2*0.8:3):cy+fs*0.35).toFixed(1)}" font-size="${fs.toFixed(1)}" text-anchor="middle">${name}</text>
+    ${showPct?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2+(showSym?1:5)).toFixed(1)}" font-size="${fs2.toFixed(1)}" text-anchor="middle">${(t.it.dp>=0?"+":"")+t.it.dp.toFixed(2)}%</text>`:""}
+    ${showSym?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2*2+10).toFixed(1)}" font-size="${(fs2*0.85).toFixed(1)}" text-anchor="middle" opacity="0.55">${t.it.sym}</text>`:""}`;
   }).join("");
   document.getElementById("heatwrap").innerHTML=
     `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>
-     <div class="dimtx" style="margin-top:6px"><span style="color:#14B8A6">■ advancing</span> · <span style="color:#A73FDC">■ declining</span> · tile size = magnitude of move</div>`;
+     <div class="dimtx" style="margin-top:6px;letter-spacing:.04em"><span style="color:#3E9B77">▪ advancing</span>&ensp;<span style="color:#B25658">▪ declining</span>&ensp;·&ensp;area = magnitude of move</div>`;
 }
 
 /* ══ alerts ══ */
