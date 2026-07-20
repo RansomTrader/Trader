@@ -745,7 +745,7 @@ function renderTape(){
   const box=document.getElementById("tape");
   document.getElementById("tapeCount").textContent=tapeItems.length?tapeItems.length+" · 15s poll":"—";
   box.innerHTML=tapeItems.map(a=>`<div class="news-item">
-    ${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
+    ${a.filing?`<span style="font-size:9px;color:var(--amber);background:#E8A33D1A;border:1px solid #E8A33D77;border-radius:3px;padding:0 5px;margin-right:5px">FILING</span>`:""}${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
     ${a.sym?`<span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>${tapePx(a.sym)}`:""}
     <a href="${a.url}" target="_blank" rel="noopener" class="${a.tone||""}">${(a.headline||"").slice(0,120)}</a>
     <div class="src">${a.source||""} · ${fmtTime(a.datetime)}</div></div>`).join("")
@@ -912,6 +912,85 @@ function renderHeat(){
      <div class="dimtx" style="margin-top:6px;letter-spacing:.04em"><span style="color:#3E9B77">▪ advancing</span>&ensp;<span style="color:#B25658">▪ declining</span>&ensp;·&ensp;area = magnitude of move</div>`;
 }
 
+/* ══ SEC EDGAR filings ══ */
+let cikMap=null, edgarSeen=new Set(), edgarStatus="";
+const EDGAR_FORMS=new Set(["8-K","10-K","10-Q","S-1","S-1/A","SC 13D","SC 13G","6-K","20-F","424B4","424B5"]);
+async function loadCikMap(){
+  if(cikMap!==null)return;
+  try{
+    const r=await fetch("https://www.sec.gov/files/company_tickers.json");
+    const d=await r.json();
+    cikMap={};
+    Object.values(d).forEach(e=>{cikMap[e.ticker]=String(e.cik_str).padStart(10,"0");});
+    edgarStatus="ok";
+  }catch(e){cikMap={};edgarStatus="blocked";}
+}
+async function pollEdgar(){
+  if(!symbols.length)return;
+  await loadCikMap();
+  if(edgarStatus!=="ok")return;
+  const cutoff=new Date(Date.now()-3*86400e3).toISOString().slice(0,10);
+  let fresh=0;
+  for(const sym of symbols){
+    if(isCrypto(sym))continue;
+    const cik=cikMap[sym];if(!cik)continue;
+    try{
+      const r=await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`);
+      const d=await r.json();
+      const rec=d.filings&&d.filings.recent;if(!rec)continue;
+      for(let i=0;i<Math.min(rec.form.length,20);i++){
+        const form=rec.form[i],date=rec.filingDate[i],acc=rec.accessionNumber[i];
+        if(date<cutoff)break;
+        if(!EDGAR_FORMS.has(form))continue;
+        const key=sym+acc;
+        if(edgarSeen.has(key))continue;
+        edgarSeen.add(key);
+        const accNo=acc.replace(/-/g,"");
+        const doc=rec.primaryDocument[i]||"";
+        const url=`https://www.sec.gov/Archives/edgar/data/${+cik}/${accNo}/${doc}`;
+        const desc={"8-K":"current report (material event)","10-K":"annual report","10-Q":"quarterly report","S-1":"IPO registration","S-1/A":"IPO registration (amended)","SC 13D":"activist stake >5%","SC 13G":"passive stake >5%","6-K":"foreign issuer report","20-F":"foreign annual report","424B4":"offering prospectus","424B5":"offering prospectus"}[form]||form;
+        tapeItems.push({id:key,sym,headline:form+" — "+desc,url,datetime:Math.floor(new Date(date+"T16:00:00").getTime()/1000),source:"SEC EDGAR",tone:"",filing:true,fresh:!edgarFirstRun});
+        if(!edgarFirstRun)fresh++;
+      }
+    }catch(e){}
+  }
+  if(fresh){tapeItems.sort((a,b)=>b.datetime-a.datetime);newsChime();toast("⚠ "+fresh+" new SEC filing"+(fresh>1?"s":""));renderTape();}
+  edgarFirstRun=false;
+}
+let edgarFirstRun=true;
+setInterval(pollEdgar,120000);
+
+/* ══ StockTwits crowd sentiment ══ */
+async function loadCrowd(sym){
+  try{
+    const stSym=isCrypto(sym)?sym+".X":sym;
+    const r=await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${stSym}.json`);
+    const d=await r.json();
+    const msgs=(d.messages||[]).slice(0,30);
+    let bull=0,bear=0;
+    msgs.forEach(m=>{
+      const s2=m.entities&&m.entities.sentiment&&m.entities.sentiment.basic;
+      if(s2==="Bullish")bull++;else if(s2==="Bearish")bear++;
+    });
+    state[sym].crowd={bull,bear,n:bull+bear,total:msgs.length};
+    render();
+  }catch(e){state[sym].crowd={err:true};}
+}
+function crowdHTML(st){
+  const c=st.crowd;
+  if(!c||c.err||!c.n)return "";
+  const pct=Math.round(c.bull/c.n*100);
+  const col=pct>=60?"var(--up)":pct<=40?"var(--dn)":"var(--flat)";
+  return `<div style="margin-top:8px">
+    <span class="dimtx" style="letter-spacing:.1em">CROWD</span>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:3px">
+      <div style="flex:1;height:5px;background:#E05C5C40;border-radius:3px;overflow:hidden;max-width:180px">
+        <div style="width:${pct}%;height:100%;background:${col}"></div></div>
+      <span class="num" style="font-size:11px;color:${col}">${pct}% bullish</span>
+      <span class="dimtx">${c.n} tagged / ${c.total} msgs · StockTwits</span>
+    </div></div>`;
+}
+
 /* ══ alerts ══ */
 let alerts=LS.get("alerts",[]);
 function alertChime(){beep(1047,0.08);setTimeout(()=>beep(1047,0.08),140);setTimeout(()=>beep(1047,0.14),280);}
@@ -1046,7 +1125,7 @@ function render(){
       ?`<div class="big num ${st.flash||""}" style="border-radius:5px;padding:0 4px;margin:0 -4px">${q.c.toFixed(2)}</div><span class="delta ${chgCls} num">${chg!=null?`${chg>=0?"+":""}${chg.toFixed(2)}%`:"—"}</span>`
       :`<div class="skel" style="width:84px;height:24px;margin-bottom:6px"></div><div class="skel" style="width:52px;height:14px"></div>`;
     return `<div class="card" style="--vc:${vc}">
-      <details data-sym="${sym}" ${openSet.has(sym)||forceOpen===sym?"open":""} ontoggle="if(this.open&&!(state['${sym}']||{}).news)loadNews('${sym}')">
+      <details data-sym="${sym}" ${openSet.has(sym)||forceOpen===sym?"open":""} ontoggle="if(this.open&&!(state['${sym}']||{}).news){loadNews('${sym}');loadCrowd('${sym}')}">
       <summary><div class="row" style="justify-content:space-between">
         <div style="min-width:86px">
           <div class="sym-name">${sym}${earnBadge(st)}</div>
@@ -1075,6 +1154,7 @@ function render(){
         ${st.hi52?`<span class="dimtx num">52W ${st.lo52.toFixed(2)} – ${st.hi52.toFixed(2)}</span>`:""}
         ${st.atr&&q&&q.c?`<div class="dimtx num">ATR stop guide (long): ${(q.c-1.5*st.atr).toFixed(2)} — 1.5×ATR below price</div>`:""}
       </div>
+      ${crowdHTML(st)}
       <div class="section-lbl">NEWS · 7D</div>
       <div>${newsHTML||`<span class="dimtx">loading headlines…</span>`}</div>
       </details>
@@ -1373,7 +1453,7 @@ document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
 symbols.forEach(s=>{state[s]={};queueCandles(s);loadEarnings(s);});
-renderJournal();paintMonBtn();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();layoutQuad();
+renderJournal();paintMonBtn();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();layoutQuad();setTimeout(pollEdgar,4000);
 </script>
 </body>
 </html>
