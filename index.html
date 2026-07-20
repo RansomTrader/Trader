@@ -493,23 +493,19 @@ function fmtTime(unix){
 }
 const tapeSeen=new Set(); let tapeItems=[]; let tapeFirstRun=true;
 async function pollNewsTape(){
-  if(!cfg.fh||!symbols.length)return;
-  const from=new Date(Date.now()-2*86400e3).toISOString().slice(0,10);
-  const to=new Date().toISOString().slice(0,10);
+  if(!cfg.fh)return;
   let fresh=0;
-  for(const sym of symbols){
-    try{
-      const arts=await fh(`/company-news?symbol=${sym}&from=${from}&to=${to}`);
-      for(const a of (arts||[]).slice(0,10)){
-        if(tapeSeen.has(a.id))continue;
-        tapeSeen.add(a.id);
-        tapeItems.push({...a,sym,fresh:!tapeFirstRun});
-        if(!tapeFirstRun)fresh++;
-      }
-    }catch(e){}
-  }
+  try{
+    const arts=await fh(`/news?category=general`);
+    for(const a of (arts||[]).slice(0,60)){
+      if(tapeSeen.has(a.id))continue;
+      tapeSeen.add(a.id);
+      tapeItems.push({...a,sym:(a.related||"").split(",")[0]||"",fresh:!tapeFirstRun});
+      if(!tapeFirstRun)fresh++;
+    }
+  }catch(e){}
   tapeItems.sort((a,b)=>b.datetime-a.datetime);
-  tapeItems=tapeItems.slice(0,40);
+  tapeItems=tapeItems.slice(0,50);
   if(fresh)toast(fresh+" new headline"+(fresh>1?"s":""));
   tapeFirstRun=false;
   renderTape();
@@ -519,10 +515,10 @@ function renderTape(){
   document.getElementById("tapeCount").textContent=tapeItems.length?tapeItems.length+" · 60s poll":"—";
   box.innerHTML=tapeItems.map(a=>`<div class="news-item">
     ${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
-    <span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>
+    ${a.sym?`<span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>`:""}
     <a href="${a.url}" target="_blank" rel="noopener">${(a.headline||"").slice(0,120)}</a>
     <div class="src">${a.source||""} · ${fmtTime(a.datetime)}</div></div>`).join("")
-    ||`<span class="dimtx">no headlines in the last 48h for tracked tickers</span>`;
+    ||`<span class="dimtx">waiting for market headlines…</span>`;
   setTimeout(()=>{tapeItems.forEach(a=>a.fresh=false);},55000);
 }
 setInterval(pollNewsTape,60000);
