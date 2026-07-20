@@ -402,7 +402,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
 <footer>
   RSI-14 · SMA 20/50 · MACD 12-26-9 · Bollinger 20,2 · ATR-14 · 52-week range. Meter = sum of signal directions.
-  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v16</span>
+  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v17</span>
 </footer>
 </div>
 <div class="modal" id="desModal" onclick="if(event.target===this)this.classList.remove('on')">
@@ -830,6 +830,18 @@ function newsChime(){beep(1174,0.09);setTimeout(()=>beep(1568,0.14),110);}
 function newsBlip(){beep(740,0.05);}
 function orderChime(){beep(523,0.07);setTimeout(()=>beep(784,0.12),90);}
 function fillChime(){beep(988,0.08);setTimeout(()=>beep(1319,0.16),100);}
+function cashChime(){
+  if(!sndOn)return;ensureAudio();if(!audioCtx)return;
+  const t=audioCtx.currentTime;
+  [[2093,0],[2637,0.09],[3136,0.18]].forEach(([f,dt])=>{
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type="triangle";o.frequency.value=f;
+    g.gain.setValueAtTime(0.0001,t+dt);
+    g.gain.exponentialRampToValueAtTime(0.18,t+dt+0.012);
+    g.gain.exponentialRampToValueAtTime(0.001,t+dt+0.5);
+    o.connect(g);g.connect(audioCtx.destination);o.start(t+dt);o.stop(t+dt+0.55);
+  });
+}
 document.addEventListener("pointerdown",ensureAudio,{once:true});
 let stripSig="";
 function renderStrip(){
@@ -1504,6 +1516,7 @@ function checkFills(){
       if(!p||Math.abs(p.qty)<o.qty){o.status="rejected";o.reason="no position";changed=true;continue;}
       paper.cash+=p.qty>0?o.qty*px:-o.qty*px;
       const entrySide=p.qty>0?"long":"short";
+      o._pl=(entrySide==="long"?(px-p.avg):(p.avg-px))*o.qty;
       trades.unshift({id:Date.now()+Math.random(),sym:o.sym,side:entrySide,entry:p.avg,stop:p.stop||p.avg,shares:o.qty,
         note:"paper fill ("+o.type+")",opened:o.created,closed:new Date().toISOString(),exit:px});
       LS.set("trades",trades);
@@ -1511,7 +1524,9 @@ function checkFills(){
       if(p.qty===0)delete paper.positions[o.sym];
     }
     o.status="filled";o.filledPx=px;o.filledAt=new Date().toISOString();
-    changed=true;fillChime();toast(o.sym+" "+o.act+" filled @ "+px.toFixed(2));
+    changed=true;
+    if(o.act==="close"&&o._pl>0){cashChime();toast("💰 "+o.sym+" closed +$"+o._pl.toFixed(0));}
+    else{fillChime();toast(o.sym+" "+o.act+" filled @ "+px.toFixed(2));}
   }
   paper.orders=paper.orders.filter(o=>o.status==="open"||Date.now()-o.id<60000); // keep open + last minute of fills for visibility
   if(changed){savePaper();renderDesk();renderJournal();}
