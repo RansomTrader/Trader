@@ -216,6 +216,10 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 .des-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--edge); font-size:12px;}
 .des-row .dk{color:var(--dim);}
 .alert-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--edge); font-size:12px;}
+.tfrow{display:flex; gap:4px; margin-top:10px;}
+.tfbtn{background:var(--panel2); border:1px solid var(--edge); border-radius:4px; color:var(--dim);
+  font-family:var(--mono); font-size:10px; letter-spacing:.08em; padding:4px 10px; cursor:pointer;}
+.tfbtn.on{color:var(--amber); border-color:#E8A33D66; background:#E8A33D0D;}
 </style>
 </head>
 <body>
@@ -468,23 +472,48 @@ function queueCandles(sym){
   if(!cfg.td){state[sym].candleErr="no-td";return;}
   tdQueue.push(sym);pumpTd();
 }
+const TF_SIZE={"15min":130,"1h":170,"1day":260,"1week":160};
 async function pumpTd(){
   if(tdBusy||!tdQueue.length)return;
   tdBusy=true;
-  const sym=tdQueue.shift();
+  const job=tdQueue.shift();
+  const sym=typeof job==="string"?job:job.sym;
+  const tf=typeof job==="string"?"1day":job.tf;
   try{
-    const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${sym}&interval=1day&outputsize=260&apikey=${encodeURIComponent(cfg.td)}`);
+    const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${sym}&interval=${tf}&outputsize=${TF_SIZE[tf]||260}&apikey=${encodeURIComponent(cfg.td)}`);
     const d=await r.json();
     if(d.status==="error")throw new Error(d.message||"td-error");
     const vals=(d.values||[]).slice().reverse();
-    state[sym].ohlc=vals.map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close}));
-    const yr=state[sym].ohlc.slice(-252);
-    state[sym].hi52=Math.max(...yr.map(x=>x.h));
-    state[sym].lo52=Math.min(...yr.map(x=>x.l));
-    state[sym].candleErr=null;
-    buildSigs(sym);render();
-  }catch(e){state[sym].candleErr=String(e.message||e).slice(0,60);render();}
+    const parsed=vals.map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close}));
+    if(tf==="1day"){
+      state[sym].ohlc=parsed;
+      const yr=parsed.slice(-252);
+      state[sym].hi52=Math.max(...yr.map(x=>x.h));
+      state[sym].lo52=Math.min(...yr.map(x=>x.l));
+      state[sym].candleErr=null;
+      buildSigs(sym);
+    }else{
+      state[sym].tfData=state[sym].tfData||{};
+      state[sym].tfData[tf]=parsed;
+    }
+    if(state[sym].tfPending===tf)state[sym].tfPending=null;
+    render();
+  }catch(e){
+    if(tf==="1day")state[sym].candleErr=String(e.message||e).slice(0,60);
+    else{state[sym].tfErr=String(e.message||e).slice(0,60);if(state[sym].tfPending===tf)state[sym].tfPending=null;}
+    render();
+  }
   setTimeout(()=>{tdBusy=false;pumpTd();},8500);
+}
+function setChartTf(sym,tf){
+  const st=state[sym];if(!st)return;
+  st.chartTf=tf;st.tfErr=null;
+  if(tf!=="1day"&&!(st.tfData&&st.tfData[tf])){
+    if(!cfg.td){toast("Intraday needs a Twelve Data key (SETUP)");return;}
+    st.tfPending=tf;
+    tdQueue.push({sym,tf});pumpTd();
+  }
+  render();
 }
 async function loadNews(sym){
   try{
@@ -569,7 +598,7 @@ function sparkSVG(data,w=120,h=36){
     <polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"/>
     <circle cx="${last.split(",")[0]}" cy="${last.split(",")[1]}" r="2.2" fill="${c}"/></svg>`;
 }
-function candleSVG(ohlc,w,h=170){
+function candleSVG(ohlc,w,caption,h=170){
   if(!ohlc||ohlc.length<10)return "";
   const d=ohlc.slice(-60);
   const closes=ohlc.map(x=>x.c);
@@ -591,11 +620,11 @@ function candleSVG(ohlc,w,h=170){
     const pts=arr.map((v,i)=>`${((i+off)*cw+cw/2).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
     return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.2" opacity="0.85"/>`;
   };
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;margin-top:10px">
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;margin-top:6px">
     ${bars}${line(s20,"var(--amber)")}${line(s50,"var(--info)")}
   </svg>
-  <div class="dimtx" style="display:flex;gap:14px;margin-top:4px">
-    <span>60 sessions</span><span class="a">— SMA20</span><span style="color:var(--info)">— SMA50</span>
+  <div class="dimtx" style="display:flex;gap:14px;margin-top:4px;flex-wrap:wrap">
+    <span>${caption||"60 sessions"}</span><span class="a">— SMA20</span><span style="color:var(--info)">— SMA50</span>
     <span class="num">H ${hi.toFixed(2)} · L ${lo.toFixed(2)}</span></div>`;
 }
 function meterHTML(score){
@@ -969,7 +998,17 @@ function render(){
       <div class="expand-hint" style="margin-top:6px;color:var(--dim)">▾ chart · signals · news</div>
       </summary>
       <div style="margin-top:10px">${(st.sigs||[]).map(chipHTML).join("")}${status}</div>
-      ${candleSVG(st.ohlc,600)}
+      ${(()=>{
+        const tf=st.chartTf||"1day";
+        const caps={"15min":"15-min bars · ~5 days","1h":"hourly bars · ~1 month","1day":"daily · 60 sessions","1week":"weekly · ~3 years"};
+        const data=tf==="1day"?st.ohlc:(st.tfData&&st.tfData[tf]);
+        const pills=[["15min","15M"],["1h","1H"],["1day","D"],["1week","W"]].map(([k,l])=>
+          `<button class="tfbtn ${tf===k?"on":""}" onclick="event.preventDefault();setChartTf('${sym}','${k}')">${l}</button>`).join("");
+        const body=st.tfPending===tf?`<div class="skel" style="height:170px;margin-top:6px;border-radius:6px"></div>`
+          :st.tfErr&&tf!=="1day"?`<div class="dimtx" style="margin-top:8px">chart: ${st.tfErr}</div>`
+          :candleSVG(data,600,caps[tf]+(tf==="1day"?"":" · signals stay daily"));
+        return `<div class="tfrow">${pills}</div>${body}`;
+      })()}
       <div style="margin-top:8px">
         ${st.hi52?`<span class="dimtx num">52W ${st.lo52.toFixed(2)} – ${st.hi52.toFixed(2)}</span>`:""}
         ${st.atr&&q&&q.c?`<div class="dimtx num">ATR stop guide (long): ${(q.c-1.5*st.atr).toFixed(2)} — 1.5×ATR below price</div>`:""}
