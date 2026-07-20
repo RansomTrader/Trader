@@ -913,17 +913,26 @@ function renderHeat(){
 }
 
 /* ══ SEC EDGAR filings ══ */
+const PROXY=u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u);
+let useProxy={sec:false,st:false};
+async function relayFetch(url,kind){
+  if(!useProxy[kind]){
+    try{const r=await fetch(url);if(r.ok)return r;throw 0;}
+    catch(e){useProxy[kind]=true;}
+  }
+  return fetch(PROXY(url));
+}
+const CIK_STATIC={AAPL:"0000320193",MSFT:"0000789019",NVDA:"0001045810",TSLA:"0001318605",AMZN:"0001018724",META:"0001326801",MSTR:"0001050446"};
 let cikMap=null, edgarSeen=new Set(), edgarStatus="";
 const EDGAR_FORMS=new Set(["8-K","10-K","10-Q","S-1","S-1/A","SC 13D","SC 13G","6-K","20-F","424B4","424B5"]);
 async function loadCikMap(){
   if(cikMap!==null)return;
+  cikMap={...CIK_STATIC};edgarStatus="ok";
   try{
-    const r=await fetch("https://www.sec.gov/files/company_tickers.json");
+    const r=await relayFetch("https://www.sec.gov/files/company_tickers.json","sec");
     const d=await r.json();
-    cikMap={};
-    Object.values(d).forEach(e=>{cikMap[e.ticker]=String(e.cik_str).padStart(10,"0");});
-    edgarStatus="ok";
-  }catch(e){cikMap={};edgarStatus="blocked";}
+    Object.values(d).forEach(e=>{if(!cikMap[e.ticker])cikMap[e.ticker]=String(e.cik_str).padStart(10,"0");});
+  }catch(e){}
 }
 async function pollEdgar(){
   if(!symbols.length)return;
@@ -935,7 +944,7 @@ async function pollEdgar(){
     if(isCrypto(sym))continue;
     const cik=cikMap[sym];if(!cik)continue;
     try{
-      const r=await fetch(`https://data.sec.gov/submissions/CIK${cik}.json`);
+      const r=await relayFetch(`https://data.sec.gov/submissions/CIK${cik}.json`,"sec");
       const d=await r.json();
       const rec=d.filings&&d.filings.recent;if(!rec)continue;
       for(let i=0;i<Math.min(rec.form.length,20);i++){
@@ -964,7 +973,7 @@ setInterval(pollEdgar,120000);
 async function loadCrowd(sym){
   try{
     const stSym=isCrypto(sym)?sym+".X":sym;
-    const r=await fetch(`https://api.stocktwits.com/api/2/streams/symbol/${stSym}.json`);
+    const r=await relayFetch(`https://api.stocktwits.com/api/2/streams/symbol/${stSym}.json`,"st");
     const d=await r.json();
     const msgs=(d.messages||[]).slice(0,30);
     let bull=0,bear=0;
@@ -1453,7 +1462,7 @@ document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
 symbols.forEach(s=>{state[s]={};queueCandles(s);loadEarnings(s);});
-renderJournal();paintMonBtn();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();layoutQuad();setTimeout(pollEdgar,4000);
+renderJournal();paintMonBtn();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();layoutQuad();setTimeout(pollEdgar,2500);
 </script>
 </body>
 </html>
