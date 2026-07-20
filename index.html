@@ -122,6 +122,8 @@ details[open] .expand-hint{display:none;}
 .news-item{padding:8px 0; border-bottom:1px solid var(--edge); font-size:12px; line-height:1.45;}
 .news-item:last-child{border-bottom:none;}
 .news-item a{color:var(--ink); text-decoration:none;}
+.news-item a.u{color:var(--up);}
+.news-item a.d{color:var(--dn);}
 .news-item .src{font-size:10.5px; color:var(--dim); margin-top:2px;}
 .section-lbl{font-size:10px; color:var(--dim); letter-spacing:.16em; margin:14px 0 6px; font-weight:600;}
 footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
@@ -418,7 +420,7 @@ function seedCryptoQuote(sym){
   if(!st||!st.ohlc||st.ohlc.length<2)return;
   const pc=st.ohlc[st.ohlc.length-2].c;
   const last=st.quote&&st.quote.c?st.quote.c:st.ohlc[st.ohlc.length-1].c;
-  st.quote={c:last,pc,d:last-pc,dp:(last-pc)/pc*100};
+  st.quote={...(st.quote||{}),c:last,pc,d:last-pc,dp:(last-pc)/pc*100};
 }
 const TOP10=["SPY","QQQ","NVDA","AAPL","MSFT","TSLA","AMZN","META","AMD","MSTR"];
 let symbols=LS.get("syms",[]);
@@ -592,7 +594,8 @@ function wsConnect(){
       if(m.type!=="trade"||!m.data)return;
       for(const t of m.data){
         const st=state[revCrypto[t.s]||t.s];
-        if(!st||!st.quote)continue;
+        if(!st)continue;
+        if(!st.quote)st.quote={c:t.p};
         if(st.quote.c&&t.p!==st.quote.c)st.flash=t.p>st.quote.c?"fu":"fd";
         st.quote.c=t.p;
         if(st.quote.pc){st.quote.d=t.p-st.quote.pc;st.quote.dp=(t.p-st.quote.pc)/st.quote.pc*100;}
@@ -731,12 +734,19 @@ async function pollNewsTape(){
   tapeFirstRun=false;
   renderTape();
 }
+function tapePx(sym){
+  const st=state[sym];const q=st&&st.quote;
+  if(!q||!q.c)return "";
+  const cls=q.dp==null?"f":q.dp>=0?"u":"d";
+  const pct=q.dp!=null?" "+(q.dp>=0?"+":"")+q.dp.toFixed(2)+"%":"";
+  return `<span class="num ${cls}" style="font-size:10px;margin-right:5px">${q.c.toFixed(2)}${pct}</span>`;
+}
 function renderTape(){
   const box=document.getElementById("tape");
   document.getElementById("tapeCount").textContent=tapeItems.length?tapeItems.length+" · 15s poll":"—";
   box.innerHTML=tapeItems.map(a=>`<div class="news-item">
     ${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
-    ${a.sym?`<span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>`:""}
+    ${a.sym?`<span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>${tapePx(a.sym)}`:""}
     <a href="${a.url}" target="_blank" rel="noopener" class="${a.tone||""}">${(a.headline||"").slice(0,120)}</a>
     <div class="src">${a.source||""} · ${fmtTime(a.datetime)}</div></div>`).join("")
     ||`<span class="dimtx">waiting for market headlines…</span>`;
