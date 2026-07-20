@@ -170,6 +170,7 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
   <div class="row" style="margin-bottom:14px; max-width:440px;">
     <input id="symInput" placeholder="Add ticker — AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
     <button class="line" onclick="addSymbol()">Track</button>
+    <button class="ghost" onclick="addTop10()">+ top 10</button>
   </div>
   <div class="card" style="--vc:var(--info); padding:10px 14px; margin-bottom:12px">
     <details id="tapeBox" open>
@@ -297,7 +298,17 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 const LS={get:(k,d)=>{try{const v=localStorage.getItem("sd_"+k);return v?JSON.parse(v):d;}catch(e){return d;}},
           set:(k,v)=>{try{localStorage.setItem("sd_"+k,JSON.stringify(v));}catch(e){}}};
 let cfg=LS.get("cfg",{fh:"",td:"",acct:10000,risk:1});
+const TOP10=["SPY","QQQ","NVDA","AAPL","MSFT","TSLA","AMZN","META","AMD","MSTR"];
 let symbols=LS.get("syms",[]);
+if(!symbols.length){symbols=[...TOP10];LS.set("syms",symbols);}
+function addTop10(){
+  const added=TOP10.filter(s=>!symbols.includes(s));
+  if(!added.length){toast("Top 10 already tracked");return;}
+  if(!cfg.fh){toast("Set your Finnhub key in SETUP first");return;}
+  added.forEach(sym=>{symbols.push(sym);state[sym]={};queueCandles(sym);loadEarnings(sym);wsSub(sym);});
+  LS.set("syms",symbols);render();poll();
+  toast("Added "+added.length+" tickers");
+}
 let trades=LS.get("trades",[]);
 const state={};
 const POLL_MS=15000;
