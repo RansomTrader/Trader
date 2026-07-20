@@ -158,10 +158,19 @@ footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
 .tape-card{margin-bottom:12px;}
 @media(min-width:1000px){
   .mkt-grid{grid-template-columns:minmax(0,1fr) 360px; gap:18px; align-items:start;}
+  #quadCol{display:none;}
   .tape-col{order:0; position:sticky; top:14px;}
   .tape-card{margin-bottom:0;}
   #tape{max-height:calc(100vh - 150px);}
   .wrap{max-width:1180px;}
+}
+@media(min-width:1400px){
+  .wrap{max-width:1560px;}
+  .mkt-grid{grid-template-columns:minmax(0,1fr) 340px 330px;}
+  #quadCol{display:block; position:sticky; top:14px;}
+  #quadCol .tab{display:block;}
+  #quadCol .empty-state{padding:16px;}
+  nav button[data-tab=portfolio].hidden{display:none;}
 }
 @media(hover:hover){
   .card{transition:border-color .18s;}
@@ -175,6 +184,34 @@ button.line,button.solid{min-height:40px;}
 .stat{border-radius:10px;}
 .expand-hint{font-size:10px; opacity:.7;}
 input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
+
+/* ── terminal DNA ── */
+.cmdlbar{display:flex; align-items:center; gap:8px; background:var(--panel2); border:1px solid var(--edge);
+  border-radius:8px; padding:0 12px; margin-bottom:12px;}
+.cmdlbar .pr{color:var(--amber); font-weight:700; font-size:14px;}
+.cmdlbar input{background:none; border:none; box-shadow:none; padding:11px 0; font-size:13px;
+  letter-spacing:.04em; text-transform:uppercase;}
+.cmdlbar input:focus{box-shadow:none;}
+.cmdl-hint{font-size:9px; color:#465468; letter-spacing:.06em; flex:none;}
+.montbl{width:100%; border-collapse:collapse; font-size:12px;}
+.montbl th{color:var(--dim); font-size:9px; letter-spacing:.1em; text-align:right; padding:7px 8px;
+  border-bottom:1px solid var(--edge); cursor:pointer; user-select:none;}
+.montbl th:first-child,.montbl td:first-child{text-align:left;}
+.montbl td{padding:8px; border-bottom:1px solid var(--edge); text-align:right; cursor:pointer;}
+.montbl tr:hover td{background:#FFFFFF06;}
+.heatgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(86px,1fr)); gap:6px; margin-top:8px;}
+.heattile{border-radius:6px; padding:9px 8px; text-align:center; border:1px solid var(--edge);}
+.heattile .hs{font-size:11px; font-weight:700; letter-spacing:.04em;}
+.heattile .hn{font-size:8px; color:#0008; letter-spacing:.04em; margin:1px 0;}
+.heattile .hp{font-size:11px; font-weight:600;}
+.modal{position:fixed; inset:0; background:#000A; backdrop-filter:blur(4px); z-index:20;
+  display:none; align-items:flex-start; justify-content:center; padding:40px 14px; overflow-y:auto;}
+.modal.on{display:flex;}
+.modal-card{background:var(--panel); border:1px solid var(--edge2); border-radius:12px;
+  padding:20px; max-width:560px; width:100%; box-shadow:0 30px 80px #000C;}
+.des-row{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--edge); font-size:12px;}
+.des-row .dk{color:var(--dim);}
+.alert-row{display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--edge); font-size:12px;}
 </style>
 </head>
 <body>
@@ -184,6 +221,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
   <div class="meta"><button class="sndbtn" id="sndBtn" onclick="toggleSound()">♪ OFF</button><span class="pulse" id="pulseDot" style="display:none"></span><span id="meta">connect keys in SETUP</span></div>
 </header>
 <div class="strip" id="strip"></div>
+<div class="cmdlbar">
+  <span class="pr">&gt;</span>
+  <input id="cmdl" placeholder="NVDA GP · AAPL DES · MSTR T · ALRT NVDA > 190 · MON · HEAT · HELP" autocomplete="off" autocapitalize="characters">
+  <span class="cmdl-hint">↵ RUN</span>
+</div>
 
 <nav>
   <button data-tab="market" class="on">MARKET</button>
@@ -201,6 +243,16 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
         <input id="symInput" placeholder="Add ticker — AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
         <button class="line" onclick="addSymbol()">Track</button>
         <button class="ghost" onclick="addTop10()">+ top 10</button>
+        <button class="ghost" id="monBtn" onclick="toggleMon()">⊞ MON</button>
+      </div>
+      <div class="card" style="--vc:var(--amber); padding:10px 14px; margin-bottom:12px">
+        <details id="heatBox" ontoggle="if(this.open)heatPoll()">
+          <summary class="row" style="justify-content:space-between">
+            <span style="font-size:11px; letter-spacing:.16em; color:var(--amber); font-weight:600">SECTOR HEAT</span>
+            <span class="dimtx" id="heatMeta">tap to load</span>
+          </summary>
+          <div class="heatgrid" id="heatgrid"></div>
+        </details>
       </div>
       <div id="cards"></div>
       <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
@@ -216,6 +268,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
         </details>
       </div>
     </aside>
+    <aside id="quadCol"></aside>
   </div>
 </div>
 
@@ -324,6 +377,12 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
   Journal R = P/L ÷ initial risk. Educational tool — not investment advice.
 </footer>
 </div>
+<div class="modal" id="desModal" onclick="if(event.target===this)this.classList.remove('on')">
+  <div class="modal-card" id="desBody"></div>
+</div>
+<div class="modal" id="listModal" onclick="if(event.target===this)this.classList.remove('on')">
+  <div class="modal-card" id="listBody"></div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -345,7 +404,7 @@ function addTop10(){
 }
 let trades=LS.get("trades",[]);
 const state={};
-const POLL_MS=15000;
+const POLL_MS=20000;
 let tick=0;
 const tdQueue=[]; let tdBusy=false;
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",2600);}
@@ -446,8 +505,8 @@ async function poll(){
   }
   pollBusy=false;tick++;
   document.getElementById("pulseDot").style.display="inline-block";
-  if(!wsAlive)document.getElementById("meta").textContent=`live · 15s · #${tick}`;
-  checkFills();render();renderJournal();renderDesk();
+  if(!wsAlive)document.getElementById("meta").textContent=`live · 20s · #${tick}`;
+  checkFills();checkAlerts();render();renderJournal();renderDesk();
 }
 setInterval(poll,POLL_MS);
 
@@ -474,13 +533,13 @@ function wsConnect(){
     }catch(e){}
   };
   ws.onclose=()=>{wsAlive=false;ws=null;
-    document.getElementById("meta").textContent=`live · 15s · #${tick}`;
+    document.getElementById("meta").textContent=`live · 20s · #${tick}`;
     setTimeout(wsConnect,wsRetry);wsRetry=Math.min(wsRetry*2,30000);};
   ws.onerror=()=>{try{ws.close();}catch(e){}};
 }
 function wsSub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"subscribe",symbol:sym}));}
 function wsUnsub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"unsubscribe",symbol:sym}));}
-setInterval(()=>{if(dirty){dirty=false;buildAllSigs();checkFills();render();renderJournal();}},1000);
+setInterval(()=>{if(dirty){dirty=false;buildAllSigs();checkFills();checkAlerts();render();renderJournal();}},1000);
 function buildAllSigs(){symbols.forEach(buildSigs);}
 
 /* ══ earnings calendar ══ */
@@ -636,6 +695,203 @@ function renderStrip(){
   }).join("");
 }
 
+/* ══ DES pages ══ */
+const desCache={};
+async function openDES(sym){
+  const m=document.getElementById("desModal"),b=document.getElementById("desBody");
+  m.classList.add("on");
+  b.innerHTML=`<div class="skel" style="height:20px;width:60%"></div><div style="height:12px"></div><div class="skel" style="height:120px"></div>`;
+  try{
+    if(!desCache[sym]){
+      const [prof,met]=await Promise.all([fh(`/stock/profile2?symbol=${sym}`),fh(`/stock/metric?symbol=${sym}&metric=all`)]);
+      desCache[sym]={prof,met:met.metric||{}};
+    }
+    const {prof,met}=desCache[sym];
+    const fmt=(v,suf="")=>v==null||isNaN(v)?"—":(+v).toLocaleString(undefined,{maximumFractionDigits:2})+suf;
+    const mcap=prof.marketCapitalization?(prof.marketCapitalization>=1e6?(prof.marketCapitalization/1e6).toFixed(2)+"T":prof.marketCapitalization>=1000?(prof.marketCapitalization/1000).toFixed(1)+"B":prof.marketCapitalization.toFixed(0)+"M"):"—";
+    const rows=[
+      ["Exchange",prof.exchange||"—"],["Industry",prof.finnhubIndustry||"—"],
+      ["Market cap",mcap],["Shares out",fmt(prof.shareOutstanding,"M")],
+      ["P/E (TTM)",fmt(met.peBasicExclExtraTTM??met.peTTM)],["EPS (TTM)",fmt(met.epsBasicExclExtraItemsTTM??met.epsTTM)],
+      ["Beta",fmt(met.beta)],["Div yield",fmt(met.dividendYieldIndicatedAnnual,"%")],
+      ["52W high",fmt(met["52WeekHigh"])],["52W low",fmt(met["52WeekLow"])],
+      ["Gross margin",fmt(met.grossMarginTTM,"%")],["Net margin",fmt(met.netProfitMarginTTM,"%")],
+      ["Rev growth (TTM)",fmt(met.revenueGrowthTTMYoy,"%")],["IPO",prof.ipo||"—"],
+    ];
+    b.innerHTML=`<div class="row" style="justify-content:space-between;margin-bottom:6px">
+      <div><span class="sym-name" style="font-size:20px">${sym}</span>
+        <span class="dimtx" style="display:block">${prof.name||""}</span></div>
+      ${prof.logo?`<img src="${prof.logo}" width="36" height="36" style="border-radius:8px" onerror="this.remove()">`:""}
+    </div>
+    ${rows.map(r=>`<div class="des-row"><span class="dk">${r[0]}</span><span class="num">${r[1]}</span></div>`).join("")}
+    ${prof.weburl?`<div style="margin-top:10px"><a href="${prof.weburl}" target="_blank" rel="noopener" style="color:var(--info);font-size:11px">${prof.weburl}</a></div>`:""}
+    <div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('desModal').classList.remove('on')">Close</button></div>`;
+  }catch(e){b.innerHTML=`<div class="d">DES load failed: ${e.message}</div><button class="ghost" onclick="document.getElementById('desModal').classList.remove('on')">close</button>`;}
+}
+
+/* ══ monitor view ══ */
+let monMode=LS.get("mon",false), monSort={k:"score",asc:false}, forceOpen=null;
+function toggleMon(){monMode=!monMode;LS.set("mon",monMode);paintMonBtn();render();}
+function paintMonBtn(){const b=document.getElementById("monBtn");b.textContent=monMode?"▤ CARDS":"⊞ MON";}
+function sigVal(st,k){const x=(st.sigs||[]).find(s=>s.k===k);return x?x.v:"—";}
+function sigDir(st,k){const x=(st.sigs||[]).find(s=>s.k===k);return x?x.dir:0;}
+function monRow(sym){
+  const st=state[sym]||{};const q=st.quote;
+  return {sym,last:q&&q.c?q.c:null,chg:q&&q.dp!=null?q.dp:null,
+    rsi:parseFloat(sigVal(st,"RSI"))||null,smaD:sigDir(st,"SMA 20/50"),macdD:sigDir(st,"MACD"),
+    score:scoreOf(st.sigs),flash:st.flash};
+}
+function renderMonitor(){
+  const rows=symbols.map(monRow);
+  const k=monSort.k;
+  rows.sort((a,b)=>{const av=a[k]??-1e9,bv=b[k]??-1e9;return monSort.asc?av-bv:bv-av;});
+  const dirTxt=d=>d>0?`<span class="u">▲</span>`:d<0?`<span class="d">▼</span>`:`<span class="f">·</span>`;
+  const hdr=(label,key)=>`<th onclick="monSortBy('${key}')">${label}${monSort.k===key?(monSort.asc?" ↑":" ↓"):""}</th>`;
+  return `<div class="card" style="--vc:var(--amber);padding:6px 10px"><table class="montbl">
+    <tr>${hdr("SYM","sym")}${hdr("LAST","last")}${hdr("CHG%","chg")}${hdr("RSI","rsi")}<th>SMA</th><th>MACD</th>${hdr("SCORE","score")}</tr>
+    ${rows.map(r=>`<tr onclick="monOpen('${r.sym}')">
+      <td class="${r.flash||""}"><b style="color:var(--amber)">${r.sym}</b></td>
+      <td class="num ${r.flash||""}">${r.last!=null?r.last.toFixed(2):"—"}</td>
+      <td class="num ${r.chg==null?"f":r.chg>=0?"u":"d"}">${r.chg!=null?(r.chg>=0?"+":"")+r.chg.toFixed(2):"—"}</td>
+      <td class="num ${r.rsi==null?"f":r.rsi>70?"d":r.rsi<30?"u":""}">${r.rsi!=null?r.rsi.toFixed(0):"—"}</td>
+      <td>${dirTxt(r.smaD)}</td><td>${dirTxt(r.macdD)}</td>
+      <td class="num" style="color:${r.score>0?"var(--up)":r.score<0?"var(--dn)":"var(--flat)"};font-weight:700">${r.score>0?"+":""}${r.score}</td>
+    </tr>`).join("")}
+  </table></div>`;
+}
+function monSortBy(k){monSort.asc=monSort.k===k?!monSort.asc:false;monSort.k=k;render();}
+function monOpen(sym){monMode=false;LS.set("mon",false);paintMonBtn();forceOpen=sym;render();
+  setTimeout(()=>{const el=document.querySelector(`details[data-sym="${sym}"]`);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},50);}
+
+/* ══ sector heatmap ══ */
+const SECTORS=[["XLK","TECH"],["XLF","FINL"],["XLE","ENRG"],["XLV","HLTH"],["XLY","DISC"],["XLP","STPL"],["XLI","INDU"],["XLU","UTIL"],["XLB","MATL"],["XLRE","REAL"],["XLC","COMM"]];
+const heat={}; let heatTimer=null;
+async function heatPoll(){
+  if(!cfg.fh)return;
+  if(!document.getElementById("heatBox").open){clearTimeout(heatTimer);heatTimer=null;return;}
+  for(const [sym] of SECTORS){
+    try{heat[sym]=await fh(`/quote?symbol=${sym}`);}catch(e){}
+  }
+  renderHeat();
+  document.getElementById("heatMeta").textContent="60s poll · "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  clearTimeout(heatTimer);heatTimer=setTimeout(heatPoll,60000);
+}
+function renderHeat(){
+  document.getElementById("heatgrid").innerHTML=SECTORS.map(([sym,name])=>{
+    const q=heat[sym];const dp=q&&q.dp!=null?q.dp:null;
+    const a=dp==null?0:Math.min(Math.abs(dp)/2,1);
+    const bg=dp==null?"var(--panel2)":dp>=0?`rgba(63,182,139,${(0.15+a*0.75).toFixed(2)})`:`rgba(224,92,92,${(0.15+a*0.75).toFixed(2)})`;
+    return `<div class="heattile" style="background:${bg}">
+      <div class="hs">${sym}</div><div class="hn">${name}</div>
+      <div class="hp num">${dp!=null?(dp>=0?"+":"")+dp.toFixed(2)+"%":"—"}</div></div>`;
+  }).join("");
+}
+
+/* ══ alerts ══ */
+let alerts=LS.get("alerts",[]);
+function alertChime(){beep(1047,0.08);setTimeout(()=>beep(1047,0.08),140);setTimeout(()=>beep(1047,0.14),280);}
+function addAlert(sym,kind,op,val){
+  alerts.push({id:Date.now(),sym,kind,op,val,armed:true});
+  LS.set("alerts",alerts);
+  if(!symbols.includes(sym)){symbols.push(sym);LS.set("syms",symbols);state[sym]={};queueCandles(sym);loadEarnings(sym);wsSub(sym);}
+  toast("⚑ alert set: "+sym+" "+kind+" "+op+" "+val);
+}
+function checkAlerts(){
+  let hit=false;
+  for(const al of alerts){
+    if(!al.armed)continue;
+    const st=state[al.sym];if(!st)continue;
+    let cur=null;
+    if(al.kind==="px")cur=st.quote&&st.quote.c;
+    else if(al.kind==="RSI")cur=parseFloat(sigVal(st,"RSI"))||null;
+    if(cur==null)continue;
+    if((al.op===">"&&cur>al.val)||(al.op==="<"&&cur<al.val)){
+      al.armed=false;hit=true;
+      toast("⚑ "+al.sym+" "+al.kind+" "+al.op+" "+al.val+" — now "+(+cur).toFixed(2));
+    }
+  }
+  if(hit){LS.set("alerts",alerts);alertChime();}
+}
+function showAlerts(){
+  const m=document.getElementById("listModal"),b=document.getElementById("listBody");
+  m.classList.add("on");
+  b.innerHTML=`<div class="sym-name" style="font-size:17px;margin-bottom:8px">Alerts</div>`+
+    (alerts.length?alerts.map(a=>`<div class="alert-row">
+      <span>${a.armed?"⚑":"✓"} <b style="color:var(--amber)">${a.sym}</b> ${a.kind} ${a.op} ${a.val}${a.armed?"":" <span class='u'>TRIGGERED</span>"}</span>
+      <button class="ghost" onclick="alerts=alerts.filter(x=>x.id!==${a.id});LS.set('alerts',alerts);showAlerts();">delete</button>
+    </div>`).join(""):`<div class="dimtx">No alerts. Command line: ALRT NVDA &gt; 190 or ALRT SPY RSI &lt; 30</div>`)+
+    `<div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('listModal').classList.remove('on')">Close</button></div>`;
+}
+
+/* ══ command line ══ */
+function showHelp(){
+  const m=document.getElementById("listModal"),b=document.getElementById("listBody");
+  m.classList.add("on");
+  b.innerHTML=`<div class="sym-name" style="font-size:17px;margin-bottom:8px">Commands</div>
+  ${[["NVDA","track + jump to card"],["NVDA GP","open chart panel"],["NVDA DES","company description"],["NVDA N","headlines"],["NVDA T","route to sizer"],["ALRT NVDA > 190","price alert"],["ALRT SPY RSI < 30","indicator alert"],["ALRT","list alerts"],["MON","monitor ⇄ cards"],["HEAT","sector heatmap"],["HELP","this screen"]].map(r=>`<div class="des-row"><span style="color:var(--amber);font-weight:600">${r[0]}</span><span class="dimtx">${r[1]}</span></div>`).join("")}
+  <div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('listModal').classList.remove('on')">Close</button></div>`;
+}
+function goMarketTab(){document.querySelector('nav button[data-tab=market]').click();}
+function ensureTracked(sym){
+  if(symbols.includes(sym))return;
+  symbols.push(sym);LS.set("syms",symbols);state[sym]={};
+  queueCandles(sym);loadEarnings(sym);wsSub(sym);poll();
+}
+function runCmd(raw){
+  const p=raw.trim().toUpperCase().split(/\s+/).filter(Boolean);
+  if(!p.length)return;
+  const [a,b2,c,d]=p;
+  if(a==="HELP")return showHelp();
+  if(a==="MON")return toggleMon();
+  if(a==="HEAT"){goMarketTab();const hb=document.getElementById("heatBox");hb.open=true;heatPoll();hb.scrollIntoView({behavior:"smooth"});return;}
+  if(a==="ALRT"){
+    if(!b2)return showAlerts();
+    if(c==="RSI"&&(d===">"||d==="<")&&p[4]!=null&&!isNaN(+p[4]))return addAlert(b2,"RSI",d,+p[4]);
+    if((c===">"||c==="<")&&p[3]!=null&&!isNaN(+p[3]))return addAlert(b2,"px",c,+p[3]);
+    return toast("format: ALRT SYM > 190 or ALRT SYM RSI < 30");
+  }
+  // symbol commands
+  const sym=a.replace(/[^A-Z.]/g,"");
+  if(!sym)return;
+  if(!cfg.fh)return toast("Set your Finnhub key in SETUP first");
+  ensureTracked(sym);
+  const fn=b2||"GP";
+  if(fn==="DES")return openDES(sym);
+  if(fn==="T"){
+    document.querySelector('nav button[data-tab=sizer]').click();
+    const sel=document.getElementById("szSym");
+    sel.innerHTML=`<option value="">manual entry</option>`+symbols.map(s2=>`<option ${s2===sym?"selected":""}>${s2}</option>`).join("");
+    toast(sym+" routed to sizer — tap suggest ATR stop");return;
+  }
+  // GP / N: cards mode, open, scroll
+  goMarketTab();monMode=false;LS.set("mon",false);paintMonBtn();forceOpen=sym;render();
+  setTimeout(()=>{const el=document.querySelector(`details[data-sym="${sym}"]`);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},60);
+}
+document.getElementById("cmdl").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){runCmd(e.target.value);e.target.value="";}
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="/"&&document.activeElement.tagName!=="INPUT"&&document.activeElement.tagName!=="SELECT"){
+    e.preventDefault();document.getElementById("cmdl").focus();
+  }
+});
+
+/* ══ quad layout ══ */
+function layoutQuad(){
+  const desk=document.getElementById("tab-portfolio");
+  const navBtn=document.querySelector('nav button[data-tab=portfolio]');
+  const wide=window.innerWidth>=1400;
+  if(wide&&desk.parentElement.id!=="quadCol"){
+    document.getElementById("quadCol").appendChild(desk);
+    desk.classList.add("on","embedded");navBtn.classList.add("hidden");
+    if(navBtn.classList.contains("on"))goMarketTab();
+  }else if(!wide&&desk.classList.contains("embedded")){
+    document.getElementById("tab-sizer").before(desk);
+    desk.classList.remove("embedded","on");navBtn.classList.remove("hidden");
+  }
+}
+window.addEventListener("resize",layoutQuad);
+
 function earnBadge(st){
   if(!st.earnDate)return "";
   const days=Math.ceil((new Date(st.earnDate)-Date.now())/86400e3);
@@ -647,6 +903,7 @@ function earnBadge(st){
 function render(){
   document.getElementById("mktEmpty").style.display=symbols.length?"none":"block";
   const box=document.getElementById("cards");
+  if(monMode){box.innerHTML=renderMonitor();renderStrip();symbols.forEach(s=>{if(state[s])state[s].flash=null;});return;}
   const openSet=new Set([...box.querySelectorAll("details[open]")].map(d=>d.dataset.sym));
   box.innerHTML=symbols.map(sym=>{
     const st=state[sym]||{};const q=st.quote;
@@ -664,7 +921,7 @@ function render(){
       ?`<div class="big num ${st.flash||""}" style="border-radius:5px;padding:0 4px;margin:0 -4px">${q.c.toFixed(2)}</div><span class="delta ${chgCls} num">${chg!=null?`${chg>=0?"+":""}${chg.toFixed(2)}%`:"—"}</span>`
       :`<div class="skel" style="width:84px;height:24px;margin-bottom:6px"></div><div class="skel" style="width:52px;height:14px"></div>`;
     return `<div class="card" style="--vc:${vc}">
-      <details data-sym="${sym}" ${openSet.has(sym)?"open":""} ontoggle="if(this.open&&!(state['${sym}']||{}).news)loadNews('${sym}')">
+      <details data-sym="${sym}" ${openSet.has(sym)||forceOpen===sym?"open":""} ontoggle="if(this.open&&!(state['${sym}']||{}).news)loadNews('${sym}')">
       <summary><div class="row" style="justify-content:space-between">
         <div style="min-width:86px">
           <div class="sym-name">${sym}${earnBadge(st)}</div>
@@ -693,6 +950,7 @@ function render(){
   sel.innerHTML=`<option value="">manual entry</option>`+symbols.map(s=>`<option ${s===cur?"selected":""}>${s}</option>`).join("");
   renderStrip();
   symbols.forEach(s=>{if(state[s])state[s].flash=null;});
+  forceOpen=null;
 }
 
 /* ══ symbols ══ */
@@ -980,7 +1238,7 @@ document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
 symbols.forEach(s=>{state[s]={};queueCandles(s);loadEarnings(s);});
-renderJournal();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();
+renderJournal();paintMonBtn();render();poll();wsConnect();initPaper();renderDesk();pollNewsTape();layoutQuad();
 </script>
 </body>
 </html>
