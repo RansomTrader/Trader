@@ -273,6 +273,15 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
           <div id="heatwrap" style="margin-top:10px"></div>
         </details>
       </div>
+      <div class="card" style="--vc:var(--up); padding:10px 14px; margin-bottom:12px">
+        <details id="scanBox" open>
+          <summary class="row" style="justify-content:space-between">
+            <span style="font-size:11px; letter-spacing:.16em; color:var(--up); font-weight:600">SETUPS</span>
+            <span class="dimtx" id="scanMeta">—</span>
+          </summary>
+          <div id="scanbody"></div>
+        </details>
+      </div>
       <div id="cards"></div>
       <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
     </div>
@@ -393,7 +402,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
 <footer>
   RSI-14 · SMA 20/50 · MACD 12-26-9 · Bollinger 20,2 · ATR-14 · 52-week range. Meter = sum of signal directions.
-  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v15</span>
+  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v16</span>
 </footer>
 </div>
 <div class="modal" id="desModal" onclick="if(event.target===this)this.classList.remove('on')">
@@ -487,6 +496,10 @@ function buildSigs(sym){
   if(st.atr&&px)sig.push({k:"ATR",v:st.atr.toFixed(2),dir:0,note:(st.atr/px*100).toFixed(1)+"% vol"});
   if(st.hi52&&st.lo52){const p=(px-st.lo52)/(st.hi52-st.lo52);
     sig.push({k:"52W",v:(p*100).toFixed(0)+"%",dir:p>0.8?1:p<0.2?-1:0,note:p>0.8?"near high":p<0.2?"near low":"mid range"});}
+  const s200=sma(c,200);
+  if(s200){st.sma200=s200;sig.push({k:"SMA200",v:px>s200?"above":"below",dir:px>s200?1:-1,note:"long trend"});}
+  st.rsi2=rsi(c,2);
+  st.mom=momentum121(c);
   st.sigs=sig;
 }
 const scoreOf=s=>s&&s.length?s.reduce((a,x)=>a+x.dir,0):0;
@@ -1095,7 +1108,7 @@ function showHelp(){
   const m=document.getElementById("listModal"),b=document.getElementById("listBody");
   m.classList.add("on");
   b.innerHTML=`<div class="sym-name" style="font-size:17px;margin-bottom:8px">Commands</div>
-  ${[["NVDA","track + jump to card"],["NVDA GP","open chart panel"],["NVDA DES","company description"],["NVDA N","headlines"],["NVDA T","route to sizer"],["ALRT NVDA > 190","price alert"],["ALRT SPY RSI < 30","indicator alert"],["ALRT","list alerts"],["MON","monitor ⇄ cards"],["HEAT","sector heatmap"],["HELP","this screen"]].map(r=>`<div class="des-row"><span style="color:var(--amber);font-weight:600">${r[0]}</span><span class="dimtx">${r[1]}</span></div>`).join("")}
+  ${[["NVDA","track + jump to card"],["NVDA GP","open chart panel"],["NVDA DES","company description"],["NVDA N","headlines"],["NVDA T","route to sizer"],["ALRT NVDA > 190","price alert"],["ALRT SPY RSI < 30","indicator alert"],["ALRT","list alerts"],["SCAN","setup scanner"],["MON","monitor ⇄ cards"],["HEAT","sector heatmap"],["HELP","this screen"]].map(r=>`<div class="des-row"><span style="color:var(--amber);font-weight:600">${r[0]}</span><span class="dimtx">${r[1]}</span></div>`).join("")}
   <div class="row" style="margin-top:14px"><button class="line" onclick="document.getElementById('listModal').classList.remove('on')">Close</button></div>`;
 }
 function goMarketTab(){document.querySelector('nav button[data-tab=market]').click();}
@@ -1110,6 +1123,7 @@ function runCmd(raw){
   const [a,b2,c,d]=p;
   if(a==="HELP")return showHelp();
   if(a==="MON")return toggleMon();
+  if(a==="SCAN"){goMarketTab();const sb=document.getElementById("scanBox");sb.open=true;sb.scrollIntoView({behavior:"smooth"});return;}
   if(a==="HEAT"){goMarketTab();const hb=document.getElementById("heatBox");hb.open=true;heatPoll();hb.scrollIntoView({behavior:"smooth"});return;}
   if(a==="ALRT"){
     if(!b2)return showAlerts();
@@ -1159,6 +1173,74 @@ function layoutQuad(){
 }
 window.addEventListener("resize",layoutQuad);
 
+/* ══ setups scanner ══ */
+function momentum121(closes){
+  if(!closes||closes.length<60)return null;
+  const skip=21;
+  const end=closes.length-1-skip;
+  if(end<10)return null;
+  const start=Math.max(0,closes.length-252);
+  if(end<=start)return null;
+  return closes[end]/closes[start]-1;
+}
+function scanSetups(){
+  const out=[];
+  const moms=symbols.filter(s=>!isCrypto(s)&&state[s]&&state[s].mom!=null)
+    .map(s=>({s,m:state[s].mom})).sort((a,b)=>b.m-a.m);
+  const topMom=new Set(moms.slice(0,3).map(x=>x.s));
+  for(const sym of symbols){
+    const st=state[sym];if(!st||!st.ohlc||!st.quote||!st.quote.c)continue;
+    const px=st.quote.c, s200=st.sma200, atr=st.atr;
+    const closes=st.ohlc.map(x=>x.c);
+    const s20=sma([...closes.slice(0,-1),px],20), s50=sma([...closes.slice(0,-1),px],50);
+    const erSoon=st.earnDate&&(new Date(st.earnDate)-Date.now())/86400e3<=5&&(new Date(st.earnDate)-Date.now())>=0;
+    const er=erSoon?` <span class="a">⚠ ER ≤5d</span>`:"";
+    if(!s200||!atr)continue;
+    // RSI-2 dip (Connors): uptrend + deeply oversold short-term
+    if(px>s200&&st.rsi2!=null&&st.rsi2<10){
+      out.push({rank:1,rule:"RSI-2 DIP",sym,er,
+        why:`RSI-2 ${st.rsi2.toFixed(1)} < 10 while above SMA200 — oversold snap-back in uptrend`,
+        entry:px,stop:px-1.5*atr,exit:"exit when RSI-2 > 70 (usually 1–5 days)"});
+    }
+    // Trend pullback: stacked SMAs, price back near SMA20
+    if(s20&&s50&&px>s200&&s20>s50&&px<=s20*1.015&&px>=s20*0.97){
+      out.push({rank:2,rule:"TREND PULLBACK",sym,er,
+        why:`20>50>flat, price within ${((px/s20-1)*100).toFixed(1)}% of rising SMA20 (${s20.toFixed(2)})`,
+        entry:px,stop:px-1.5*atr,exit:"trail below SMA20 or prior swing low"});
+    }
+    // Momentum leader
+    if(topMom.has(sym)&&px>s200){
+      out.push({rank:3,rule:"MOMENTUM",sym,er,
+        why:`12-1 momentum ${(st.mom*100).toFixed(0)}% — top 3 of watchlist, above SMA200`,
+        entry:px,stop:px-2*atr,exit:"hold while it stays a top-third momentum name"});
+    }
+  }
+  return out.sort((a,b)=>a.rank-b.rank||a.sym.localeCompare(b.sym));
+}
+function sizerPrefill(sym,entry,stop){
+  document.querySelector('nav button[data-tab=sizer]').click();
+  const sel=document.getElementById("szSym");
+  sel.innerHTML=`<option value="">manual entry</option>`+symbols.map(s=>`<option ${s===sym?"selected":""}>${s}</option>`).join("");
+  document.getElementById("szSide").value="long";
+  document.getElementById("szEntry").value=entry.toFixed(2);
+  document.getElementById("szStop").value=stop.toFixed(2);
+  toast(sym+" loaded — review, then Calculate");
+}
+function renderScanner(){
+  const box=document.getElementById("scanbody");if(!box)return;
+  const hits=scanSetups();
+  document.getElementById("scanMeta").textContent=hits.length?hits.length+" qualifying":"0 qualifying";
+  box.innerHTML=hits.length?hits.map(h=>`<div style="padding:9px 0;border-bottom:1px solid var(--edge)">
+    <div class="row" style="justify-content:space-between">
+      <span><span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:1px 6px;letter-spacing:.08em;margin-right:7px">${h.rule}</span>
+      <b style="color:var(--amber)">${h.sym}</b>${h.er}</span>
+      <button class="line" style="padding:4px 12px;min-height:0" onclick="sizerPrefill('${h.sym}',${h.entry},${h.stop})">→ SIZE</button>
+    </div>
+    <div class="dimtx" style="margin-top:4px">${h.why}</div>
+    <div class="dimtx num" style="margin-top:2px">entry ~${h.entry.toFixed(2)} · stop ${h.stop.toFixed(2)} (${(((h.entry-h.stop)/h.entry)*100).toFixed(1)}% risk) · ${h.exit}</div>
+  </div>`).join("")
+  :`<div class="dimtx" style="padding:10px 0">No qualifying setups right now — that's information too. Most days offer nothing; the edge dies when you force trades anyway.</div>`;
+}
 function earnBadge(st){
   if(!st.earnDate)return "";
   const days=Math.ceil((new Date(st.earnDate)-Date.now())/86400e3);
@@ -1227,6 +1309,7 @@ function render(){
   const cur=sel.value;
   sel.innerHTML=`<option value="">manual entry</option>`+symbols.map(s=>`<option ${s===cur?"selected":""}>${s}</option>`).join("");
   renderStrip();
+  renderScanner();
   symbols.forEach(s=>{if(state[s])state[s].flash=null;});
   forceOpen=null;
 }
