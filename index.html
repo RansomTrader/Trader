@@ -472,7 +472,7 @@ function queueCandles(sym){
   if(!cfg.td){state[sym].candleErr="no-td";return;}
   tdQueue.push(sym);pumpTd();
 }
-const TF_SIZE={"15min":130,"1h":170,"1day":260,"1week":160};
+const TF_SIZE={"1min":390,"15min":130,"1h":170,"1day":260,"1week":160};
 async function pumpTd(){
   if(tdBusy||!tdQueue.length)return;
   tdBusy=true;
@@ -1000,9 +1000,9 @@ function render(){
       <div style="margin-top:10px">${(st.sigs||[]).map(chipHTML).join("")}${status}</div>
       ${(()=>{
         const tf=st.chartTf||"1day";
-        const caps={"15min":"15-min bars · ~5 days","1h":"hourly bars · ~1 month","1day":"daily · 60 sessions","1week":"weekly · ~3 years"};
+        const caps={"1min":"1-min bars · today's session","15min":"15-min bars · ~5 days","1h":"hourly bars · ~1 month","1day":"daily · 60 sessions","1week":"weekly · ~3 years"};
         const data=tf==="1day"?st.ohlc:(st.tfData&&st.tfData[tf]);
-        const pills=[["15min","15M"],["1h","1H"],["1day","D"],["1week","W"]].map(([k,l])=>
+        const pills=[["1min","1M"],["15min","15M"],["1h","1H"],["1day","D"],["1week","W"]].map(([k,l])=>
           `<button class="tfbtn ${tf===k?"on":""}" onclick="event.preventDefault();setChartTf('${sym}','${k}')">${l}</button>`).join("");
         const body=st.tfPending===tf?`<div class="skel" style="height:170px;margin-top:6px;border-radius:6px"></div>`
           :st.tfErr&&tf!=="1day"?`<div class="dimtx" style="margin-top:8px">chart: ${st.tfErr}</div>`
