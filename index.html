@@ -768,7 +768,7 @@ function monOpen(sym){monMode=false;LS.set("mon",false);paintMonBtn();forceOpen=
   setTimeout(()=>{const el=document.querySelector(`details[data-sym="${sym}"]`);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},50);}
 
 /* ══ sector heatmap ══ */
-const SECTORS=[["XLK","TECH"],["XLF","FINL"],["XLE","ENRG"],["XLV","HLTH"],["XLY","DISC"],["XLP","STPL"],["XLI","INDU"],["XLU","UTIL"],["XLB","MATL"],["XLRE","REAL"],["XLC","COMM"]];
+const SECTORS=[["XLK","TECH","Technology"],["XLF","FINL","Financials"],["XLE","ENRG","Energy"],["XLV","HLTH","Health Care"],["XLY","DISC","Cons. Discretionary"],["XLP","STPL","Cons. Staples"],["XLI","INDU","Industrials"],["XLU","UTIL","Utilities"],["XLB","MATL","Materials"],["XLRE","REAL","Real Estate"],["XLC","COMM","Communications"]];
 const heat={}; let heatTimer=null;
 async function heatPoll(){
   if(!cfg.fh)return;
@@ -793,27 +793,32 @@ function splitTree(items,x,y,w,h,out){
 }
 function renderHeat(){
   const W=600,H=300,G=3;
-  const items=SECTORS.map(([sym,name])=>{
+  const items=SECTORS.map(([sym,shortN,fullN])=>{
     const q=heat[sym];const dp=q&&q.dp!=null?q.dp:null;
-    return {sym,name,dp,wt:Math.max(dp==null?0.15:Math.abs(dp),0.15)};
+    return {sym,shortN,fullN,dp,wt:Math.max(dp==null?0.15:Math.abs(dp),0.15)};
   }).sort((a,b)=>b.wt-a.wt);
   const tiles=[];splitTree(items,0,0,W,H,tiles);
   const rects=tiles.map(t=>{
     const {dp}=t.it;
     const a=dp==null?0:Math.min(Math.abs(dp)/2,1);
-    const fill=dp==null?"#161D28":dp>=0?`rgba(47,140,105,${(0.5+a*0.5).toFixed(2)})`:`rgba(178,66,66,${(0.5+a*0.5).toFixed(2)})`;
+    const al=(0.5+a*0.5).toFixed(2);
+    const fill=dp==null?"#161D28":dp>=0?`rgba(20,184,166,${al})`:`rgba(167,63,220,${al})`;
     const cx=t.x+t.w/2, cy=t.y+t.h/2;
     const small=Math.min(t.w,t.h);
-    const fs=Math.max(11,Math.min(22,small/4.2));
-    const fs2=fs*0.62;
-    const showPct=small>44&&t.h>fs+fs2+14;
+    const fs=Math.max(10.5,Math.min(19,small/4.6));
+    const fits=txt=>txt.length*fs*0.58<t.w-14;
+    const name=fits(t.it.fullN)?t.it.fullN:fits(t.it.shortN)?t.it.shortN:t.it.sym;
+    const fs2=fs*0.68;
+    const showPct=small>46&&t.h>fs+fs2+16&&t.it.dp!=null;
+    const showSym=name!==t.it.sym&&small>62&&t.h>fs+fs2*2+22;
     return `<rect x="${(t.x+G/2).toFixed(1)}" y="${(t.y+G/2).toFixed(1)}" width="${Math.max(t.w-G,1).toFixed(1)}" height="${Math.max(t.h-G,1).toFixed(1)}" rx="6" fill="${fill}" stroke="#0A0E14" stroke-width="1"/>
-    <text class="ht-sym" x="${cx.toFixed(1)}" y="${(showPct?cy-2:cy+fs*0.35).toFixed(1)}" font-size="${fs.toFixed(1)}" text-anchor="middle">${t.it.sym}</text>
-    ${showPct?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2+4).toFixed(1)}" font-size="${fs2.toFixed(1)}" text-anchor="middle">${t.it.dp!=null?(t.it.dp>=0?"+":"")+t.it.dp.toFixed(2)+"%":"—"}</text>`:""}`;
+    <text class="ht-sym" x="${cx.toFixed(1)}" y="${(showPct?cy-(showSym?fs2*0.7:2):cy+fs*0.35).toFixed(1)}" font-size="${fs.toFixed(1)}" text-anchor="middle">${name}</text>
+    ${showPct?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2+(showSym?0:4)).toFixed(1)}" font-size="${fs2.toFixed(1)}" text-anchor="middle">${(t.it.dp>=0?"+":"")+t.it.dp.toFixed(2)}%</text>`:""}
+    ${showSym?`<text class="ht-pct" x="${cx.toFixed(1)}" y="${(cy+fs2*2+8).toFixed(1)}" font-size="${(fs2*0.85).toFixed(1)}" text-anchor="middle" opacity="0.75">${t.it.sym}</text>`:""}`;
   }).join("");
   document.getElementById("heatwrap").innerHTML=
     `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">${rects}</svg>
-     <div class="dimtx" style="margin-top:6px">tile size = magnitude of today's move · color = direction</div>`;
+     <div class="dimtx" style="margin-top:6px"><span style="color:#14B8A6">■ advancing</span> · <span style="color:#A73FDC">■ declining</span> · tile size = magnitude of move</div>`;
 }
 
 /* ══ alerts ══ */
