@@ -399,6 +399,27 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 const LS={get:(k,d)=>{try{const v=localStorage.getItem("sd_"+k);return v?JSON.parse(v):d;}catch(e){return d;}},
           set:(k,v)=>{try{localStorage.setItem("sd_"+k,JSON.stringify(v));}catch(e){}}};
 let cfg=LS.get("cfg",{fh:"",td:"",acct:10000,risk:1});
+const CRYPTO={
+  BTC:["BINANCE:BTCUSDT","BTC/USD",["bitcoin","btc"]],
+  ETH:["BINANCE:ETHUSDT","ETH/USD",["ethereum"," eth"]],
+  SOL:["BINANCE:SOLUSDT","SOL/USD",["solana"]],
+  XRP:["BINANCE:XRPUSDT","XRP/USD",["xrp","ripple"]],
+  DOGE:["BINANCE:DOGEUSDT","DOGE/USD",["dogecoin","doge"]],
+  ADA:["BINANCE:ADAUSDT","ADA/USD",["cardano"]],
+  AVAX:["BINANCE:AVAXUSDT","AVAX/USD",["avalanche"]],
+  LINK:["BINANCE:LINKUSDT","LINK/USD",["chainlink"]],
+  LTC:["BINANCE:LTCUSDT","LTC/USD",["litecoin"]]};
+const isCrypto=x=>!!CRYPTO[x];
+const fhSym=x=>CRYPTO[x]?CRYPTO[x][0]:x;
+const tdSym=x=>CRYPTO[x]?CRYPTO[x][1]:x;
+const revCrypto={};Object.keys(CRYPTO).forEach(k=>revCrypto[CRYPTO[k][0]]=k);
+function seedCryptoQuote(sym){
+  const st=state[sym];
+  if(!st||!st.ohlc||st.ohlc.length<2)return;
+  const pc=st.ohlc[st.ohlc.length-2].c;
+  const last=st.quote&&st.quote.c?st.quote.c:st.ohlc[st.ohlc.length-1].c;
+  st.quote={c:last,pc,d:last-pc,dp:(last-pc)/pc*100};
+}
 const TOP10=["SPY","QQQ","NVDA","AAPL","MSFT","TSLA","AMZN","META","AMD","MSTR"];
 let symbols=LS.get("syms",[]);
 if(!symbols.length){symbols=[...TOP10];LS.set("syms",symbols);}
@@ -480,7 +501,7 @@ async function pumpTd(){
   const sym=typeof job==="string"?job:job.sym;
   const tf=typeof job==="string"?"1day":job.tf;
   try{
-    const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${sym}&interval=${tf}&outputsize=${TF_SIZE[tf]||260}&apikey=${encodeURIComponent(cfg.td)}`);
+    const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(tdSym(sym))}&interval=${tf}&outputsize=${TF_SIZE[tf]||260}&apikey=${encodeURIComponent(cfg.td)}`);
     const d=await r.json();
     if(d.status==="error")throw new Error(d.message||"td-error");
     const vals=(d.values||[]).slice().reverse();
@@ -491,6 +512,7 @@ async function pumpTd(){
       state[sym].hi52=Math.max(...yr.map(x=>x.h));
       state[sym].lo52=Math.min(...yr.map(x=>x.l));
       state[sym].candleErr=null;
+      if(isCrypto(sym))seedCryptoQuote(sym);
       buildSigs(sym);
     }else{
       state[sym].tfData=state[sym].tfData||{};
@@ -516,6 +538,18 @@ function setChartTf(sym,tf){
   render();
 }
 async function loadNews(sym){
+  if(isCrypto(sym)){
+    try{
+      const arts=await fh(`/news?category=crypto`);
+      const words=CRYPTO[sym][2];
+      state[sym].news=(arts||[]).filter(a=>{
+        const h=(a.headline||"").toLowerCase();
+        return words.some(w=>h.includes(w));
+      }).slice(0,5);
+      render();
+    }catch(e){}
+    return;
+  }
   try{
     const to=new Date().toISOString().slice(0,10);
     const from=new Date(Date.now()-7*86400e3).toISOString().slice(0,10);
@@ -529,6 +563,7 @@ async function poll(){
   if(pollBusy||!symbols.length||!cfg.fh)return;
   pollBusy=true;
   for(const sym of symbols){
+    if(isCrypto(sym)){seedCryptoQuote(sym);buildSigs(sym);continue;}
     try{
       const q=await fh(`/quote?symbol=${sym}`);
       state[sym]=state[sym]||{};
@@ -549,14 +584,14 @@ function wsConnect(){
   if(!cfg.fh||ws)return;
   try{ws=new WebSocket("wss://ws.finnhub.io?token="+encodeURIComponent(cfg.fh));}catch(e){return;}
   ws.onopen=()=>{wsAlive=true;wsRetry=1000;
-    symbols.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));
+    symbols.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:fhSym(s)})));
     document.getElementById("meta").textContent="streaming · live";};
   ws.onmessage=ev=>{
     try{
       const m=JSON.parse(ev.data);
       if(m.type!=="trade"||!m.data)return;
       for(const t of m.data){
-        const st=state[t.s];
+        const st=state[revCrypto[t.s]||t.s];
         if(!st||!st.quote)continue;
         if(st.quote.c&&t.p!==st.quote.c)st.flash=t.p>st.quote.c?"fu":"fd";
         st.quote.c=t.p;
@@ -570,13 +605,14 @@ function wsConnect(){
     setTimeout(wsConnect,wsRetry);wsRetry=Math.min(wsRetry*2,30000);};
   ws.onerror=()=>{try{ws.close();}catch(e){}};
 }
-function wsSub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"subscribe",symbol:sym}));}
-function wsUnsub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"unsubscribe",symbol:sym}));}
+function wsSub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"subscribe",symbol:fhSym(sym)}));}
+function wsUnsub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"unsubscribe",symbol:fhSym(sym)}));}
 setInterval(()=>{if(dirty){dirty=false;buildAllSigs();checkFills();checkAlerts();render();renderJournal();}},1000);
 function buildAllSigs(){symbols.forEach(buildSigs);}
 
 /* ══ earnings calendar ══ */
 async function loadEarnings(sym){
+  if(isCrypto(sym))return;
   try{
     const from=new Date().toISOString().slice(0,10);
     const to=new Date(Date.now()+14*86400e3).toISOString().slice(0,10);
@@ -646,6 +682,21 @@ function fmtTime(unix){
   const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
   return d.toDateString()===now.toDateString()?t:d.toLocaleDateString([],{month:"short",day:"numeric"})+" "+t;
 }
+const SYMWORDS=[["AAPL",/apple(?!\s*(watch|tv\+? show))/i],["MSFT",/microsoft/i],["NVDA",/nvidia/i],["TSLA",/tesla|elon musk/i],["AMZN",/amazon/i],["META",/\bmeta\b|facebook|instagram/i],["GOOGL",/google|alphabet/i],["AMD",/\bAMD\b/],["MSTR",/microstrategy|\bstrategy inc/i],["NFLX",/netflix/i],["SPY",/s&p 500|\bS&P\b/i],["QQQ",/nasdaq/i],["BTC",/bitcoin|\bBTC\b/i],["ETH",/ethereum|\bETH\b/],["SOL",/solana/i],["XRP",/\bXRP\b|ripple/i],["DOGE",/dogecoin/i],["COIN",/coinbase/i],["HOOD",/robinhood/i],["JPM",/jpmorgan/i],["GS",/goldman sachs/i],["BAC",/bank of america/i],["DIS",/\bdisney\b/i],["BA",/\bboeing\b/i],["F",/\bford\b/i],["GM",/general motors/i],["INTC",/\bintel\b/i],["PLTR",/palantir/i],["UBER",/\buber\b/i],["WMT",/walmart/i]];
+function inferSym(h){
+  if(!h)return "";
+  for(const [sym,re] of SYMWORDS)if(re.test(h))return sym;
+  return "";
+}
+const BULLW=/surge|soar|rall(y|ies)|jump|climb|gain|rises?|beats?|record high|all.time high|upgrade|raises (price )?target|outperform|bullish|tops estimate|boost|approv|breakthrough|wins|profit rise|strong (quarter|earnings|demand)|expands|buyback|dividend (hike|increase)|inflows/i;
+const BEARW=/fall|drops?|plunge|sink|slump|tumble|slide|miss(es)? estimate|cuts?|downgrade|bearish|lawsuit|probe|investigat|recall|layoff|warns?|fears?|crash|bankrupt|halts?|declines?|losses|fraud|\bban(s|ned)?\b|delays?|weak (quarter|demand|earnings)|selloff|outflows|shortfall|scandal/i;
+function sentiment(h){
+  if(!h)return "";
+  const b=BULLW.test(h),r=BEARW.test(h);
+  if(b&&!r)return "u";
+  if(r&&!b)return "d";
+  return "";
+}
 const tapeSeen=new Set(); let tapeItems=[]; let tapeFirstRun=true; let tapeCycle=0;
 const JUNK=/couple|marriage|relationship|parent|kids|psycholog|therapist|happiest|habits of|morning routine|self-made million|body language|red flag|diet|recipe|nutrition|workout|fitness|horoscope|royal famil|celebrit|dating|sleep|wellness|mindful|travel tips|best places to|quiz|holiday gift|deal of the day|coupon/i;
 function relevant(a){
@@ -665,7 +716,7 @@ async function pollNewsTape(){
         if(tapeSeen.has(a.id))continue;
         if(!relevant(a))continue;
         tapeSeen.add(a.id);
-        tapeItems.push({...a,sym:(a.related||"").split(",")[0]||"",fresh:!tapeFirstRun});
+        tapeItems.push({...a,sym:(a.related||"").split(",")[0]||inferSym(a.headline),tone:sentiment(a.headline),fresh:!tapeFirstRun});
         if(!tapeFirstRun)fresh++;
       }
     }catch(e){}
@@ -686,7 +737,7 @@ function renderTape(){
   box.innerHTML=tapeItems.map(a=>`<div class="news-item">
     ${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
     ${a.sym?`<span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>`:""}
-    <a href="${a.url}" target="_blank" rel="noopener">${(a.headline||"").slice(0,120)}</a>
+    <a href="${a.url}" target="_blank" rel="noopener" class="${a.tone||""}">${(a.headline||"").slice(0,120)}</a>
     <div class="src">${a.source||""} · ${fmtTime(a.datetime)}</div></div>`).join("")
     ||`<span class="dimtx">waiting for market headlines…</span>`;
   setTimeout(()=>{tapeItems.forEach(a=>a.fresh=false);},14000);
@@ -731,6 +782,7 @@ function renderStrip(){
 /* ══ DES pages ══ */
 const desCache={};
 async function openDES(sym){
+  if(isCrypto(sym)){toast("DES is for equities — no filings for crypto");return;}
   const m=document.getElementById("desModal"),b=document.getElementById("desBody");
   m.classList.add("on");
   b.innerHTML=`<div class="skel" style="height:20px;width:60%"></div><div style="height:12px"></div><div class="skel" style="height:120px"></div>`;
