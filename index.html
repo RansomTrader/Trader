@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Desk · Trade Indicator Tracker</title>
+<style>
+  :root{
+    --bg:#0C1017; --panel:#131A24; --edge:#1F2A38; --ink:#D8DEE6;
+    --dim:#6B7686; --amber:#E8A33D; --up:#3FB68B; --dn:#E05C5C; --flat:#8A93A3;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--ink); min-height:100vh;
+    font-family:'SFMono-Regular','JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+    padding:22px 18px 60px;
+  }
+  .wrap{max-width:880px; margin:0 auto;}
+  header{display:flex; align-items:baseline; justify-content:space-between;
+    border-bottom:1px solid var(--edge); padding-bottom:12px; margin-bottom:16px; flex-wrap:wrap; gap:6px;}
+  .eyebrow{font-size:11px; color:var(--amber); letter-spacing:.22em;}
+  h1{font-size:20px; font-weight:700; letter-spacing:.02em;}
+  .meta{font-size:10px; color:var(--dim);}
+  .gate{background:var(--panel); border:1px solid var(--edge); border-radius:4px; padding:18px; max-width:520px;}
+  .gate p{font-size:12px; color:var(--dim); margin-bottom:10px; line-height:1.5;}
+  .row-flex{display:flex; gap:8px;}
+  input{
+    flex:1; background:var(--bg); border:1px solid var(--edge); border-radius:3px;
+    color:var(--ink); padding:9px 10px; font-family:inherit; font-size:13px; outline:none;
+  }
+  input:focus{border-color:var(--amber);}
+  #symInput{background:var(--panel); text-transform:uppercase;}
+  button{font-family:inherit; font-weight:700; font-size:12px; border-radius:3px; cursor:pointer; padding:9px 16px;}
+  .btn-solid{background:var(--amber); color:#14100A; border:none;}
+  .btn-line{background:transparent; color:var(--amber); border:1px solid var(--amber);}
+  .addbar{display:none; gap:8px; margin-bottom:18px; max-width:420px;}
+  .empty{color:var(--dim); font-size:13px; padding:30px 0; display:none;}
+  .card{
+    background:var(--panel); border:1px solid var(--edge); border-left:3px solid var(--flat);
+    border-radius:4px; padding:12px 14px; margin-bottom:10px;
+  }
+  .card-top{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+  .sym{font-size:16px; font-weight:700;}
+  .verdict{font-size:10px; letter-spacing:.08em;}
+  .px{font-size:17px; font-weight:600;}
+  .chg{font-size:11px;}
+  .xbtn{margin-left:auto; background:none; border:none; color:var(--dim); font-size:12px; padding:4px 8px;}
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-top:9px;}
+  .chip{display:inline-flex; align-items:baseline; gap:5px; padding:3px 8px; border-radius:3px; font-size:12px;}
+  .chip .k{font-size:10px; color:var(--dim); letter-spacing:.06em;}
+  .chip .n{font-size:10px;}
+  .note{font-size:11px; color:var(--dim);}
+  .err{font-size:11px; color:var(--dn);}
+  footer{font-size:10px; color:var(--dim); margin-top:20px; line-height:1.6;}
+  .u{color:var(--up);} .d{color:var(--dn);} .f{color:var(--flat);}
+  @media (prefers-reduced-motion: no-preference){
+    .card{transition:border-color .3s;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">SIGNAL DESK</div>
+      <h1>Trade Indicator Tracker</h1>
+    </div>
+    <div class="meta" id="meta">finnhub · poll 15s · refresh #0</div>
+  </header>
+
+  <div class="gate" id="gate">
+    <p>Paste your Finnhub API key (free at finnhub.io). Held in memory only — gone when you close the tab, never written to disk.</p>
+    <div class="row-flex">
+      <input type="password" id="keyInput" placeholder="finnhub api key">
+      <button class="btn-solid" id="connectBtn">Connect</button>
+    </div>
+  </div>
+
+  <div class="addbar row-flex" id="addbar">
+    <input id="symInput" placeholder="add ticker · AAPL, MSTR, SPY…">
+    <button class="btn-line" id="trackBtn">Track</button>
+  </div>
+
+  <div class="empty" id="empty">
+    No tickers yet. Add one above — quote updates every 15s, indicators compute from ~200 daily candles when your key allows, otherwise from the live session tape.
+  </div>
+
+  <div id="cards"></div>
+
+  <footer>
+    Signals: RSI-14 (30/70 bands) · SMA 20/50 cross · MACD 12-26-9 histogram. Composite score = sum of signal directions.
+    Data for information only — not trade advice.
+  </footer>
+</div>
+
+<script>
+"use strict";
+const POLL_MS = 15000;
+let KEY = "";
+let tick = 0;
+const state = {};      // sym -> {quote, candles, session[], sigs, candleErr, err}
+let symbols = [];
+let timer = null;
+let busy = false;
+
+// ── math ──
+const sma = (a,n) => a.length < n ? null : a.slice(-n).reduce((s,v)=>s+v,0)/n;
+
+function rsi(closes, n=14){
+  if (closes.length < n+1) return null;
+  let g=0,l=0;
+  for (let i=1;i<=n;i++){ const d=closes[i]-closes[i-1]; d>=0 ? g+=d : l-=d; }
+  let ag=g/n, al=l/n;
+  for (let i=n+1;i<closes.length;i++){
+    const d=closes[i]-closes[i-1];
+    ag=(ag*(n-1)+Math.max(d,0))/n;
+    al=(al*(n-1)+Math.max(-d,0))/n;
+  }
+  return al===0 ? 100 : 100 - 100/(1+ag/al);
+}
+
+function emaSeries(a,n){
+  if (a.length<n) return [];
+  const k=2/(n+1), out=[a.slice(0,n).reduce((s,v)=>s+v,0)/n];
+  for (let i=n;i<a.length;i++) out.push(a[i]*k + out[out.length-1]*(1-k));
+  return out;
+}
+
+function macd(closes){
+  if (closes.length<35) return null;
+  const e12=emaSeries(closes,12), e26=emaSeries(closes,26);
+  const line=e26.map((v,i)=>e12[i+14]-v);
+  const sig=emaSeries(line,9);
+  if (!sig.length) return null;
+  const m=line[line.length-1], s=sig[sig.length-1];
+  return {hist:m-s};
+}
+
+function buildIndicators(closes){
+  const r=rsi(closes), s20=sma(closes,20), s50=sma(closes,50), md=macd(closes);
+  const px=closes[closes.length-1];
+  const sig=[];
+  if (r!=null) sig.push({k:"RSI", v:r.toFixed(1), dir:r>70?-1:r<30?1:0, note:r>70?"overbought":r<30?"oversold":"neutral"});
+  if (s20!=null && s50!=null) sig.push({k:"SMA 20/50", v:s20>s50?"20>50":"20<50", dir:s20>s50?1:-1, note:s20>s50?"bull cross":"bear cross"});
+  else if (s20!=null) sig.push({k:"SMA 20", v:s20.toFixed(2), dir:px>s20?1:-1, note:px>s20?"above":"below"});
+  if (md) sig.push({k:"MACD", v:md.hist.toFixed(3), dir:md.hist>0?1:md.hist<0?-1:0, note:md.hist>0?"hist +":"hist −"});
+  return sig;
+}
+
+const scoreOf = s => s.length ? s.reduce((a,x)=>a+x.dir,0) : 0;
+
+// ── api ──
+async function fh(path){
+  const url = "https://finnhub.io/api/v1" + path + (path.includes("?")?"&":"?") + "token=" + encodeURIComponent(KEY);
+  const r = await fetch(url);
+  if (r.status===401) throw new Error("bad-key");
+  if (r.status===403) throw new Error("premium");
+  if (r.status===429) throw new Error("rate");
+  if (!r.ok) throw new Error("http-"+r.status);
+  return r.json();
+}
+
+async function loadCandles(sym){
+  const to=Math.floor(Date.now()/1000), from=to-210*86400;
+  const d=await fh(`/stock/candle?symbol=${sym}&resolution=D&from=${from}&to=${to}`);
+  if (d.s!=="ok" || !d.c || !d.c.length) throw new Error("no-data");
+  return d.c;
+}
+
+async function refresh(){
+  if (busy || !symbols.length) return;
+  busy = true;
+  for (const sym of symbols){
+    try{
+      const q = await fh(`/quote?symbol=${sym}`);
+      const st = state[sym] || (state[sym]={session:[]});
+      st.quote = q;
+      st.err = null;
+      if (q.c){
+        st.session.push(q.c);
+        if (st.session.length>120) st.session.shift();
+      }
+      const closes = st.candles ? st.candles.slice(0,-1).concat([q.c]) : st.session;
+      st.sigs = closes.length>=15 ? buildIndicators(closes) : [];
+    }catch(e){
+      (state[sym] = state[sym] || {session:[]}).err = e.message;
+    }
+  }
+  busy = false;
+  tick++;
+  document.getElementById("meta").textContent = `finnhub · poll ${POLL_MS/1000}s · refresh #${tick}`;
+  render();
+}
+
+// ── render ──
+function sparkSVG(data, w=132, h=34){
+  if (!data || data.length<2) return `<svg width="${w}" height="${h}"></svg>`;
+  const min=Math.min(...data), max=Math.max(...data), rg=(max-min)||1;
+  const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${(h-3-((v-min)/rg)*(h-6)).toFixed(1)}`).join(" ");
+  const c = data[data.length-1]>=data[0] ? "var(--up)" : "var(--dn)";
+  return `<svg width="${w}" height="${h}" style="display:block"><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.6"/></svg>`;
+}
+
+function chipHTML(s){
+  const c = s.dir>0 ? "var(--up)" : s.dir<0 ? "var(--dn)" : "var(--flat)";
+  return `<span class="chip" style="border:1px solid ${c}44; background:${c}12;">
+    <span class="k">${s.k}</span>
+    <span style="color:${c}; font-weight:600;">${s.v}</span>
+    <span class="n" style="color:${c};">${s.note}</span>
+  </span>`;
+}
+
+function render(){
+  const box = document.getElementById("cards");
+  document.getElementById("empty").style.display = symbols.length ? "none" : "block";
+  box.innerHTML = symbols.map(sym=>{
+    const r = state[sym] || {};
+    const q = r.quote;
+    const chg = q ? q.dp : null;
+    const chgCls = chg==null ? "f" : chg>=0 ? "u" : "d";
+    const score = scoreOf(r.sigs||[]);
+    const verdict = score>=2?"BULLISH":score<=-2?"BEARISH":score>0?"lean bull":score<0?"lean bear":"MIXED";
+    const vColor = score>0?"var(--up)":score<0?"var(--dn)":"var(--flat)";
+    const series = r.candles ? r.candles.slice(-60) : r.session;
+    let status = "";
+    if (!(r.sigs||[]).length && !r.err){
+      status = r.candleErr==="premium"
+        ? `<span class="note">candles are premium on this key — building session series (${(r.session||[]).length}/15 polls for RSI)</span>`
+        : `<span class="note">computing…</span>`;
+    }
+    if (r.candleErr==="premium" && (r.sigs||[]).length)
+      status += `<span class="note">session-data mode (short window)</span>`;
+    if (r.err){
+      const msg = r.err==="bad-key"?"invalid API key":r.err==="rate"?"rate limited — backing off":"error: "+r.err;
+      status += `<span class="err">${msg}</span>`;
+    }
+    return `<div class="card" style="border-left-color:${vColor}">
+      <div class="card-top">
+        <div style="min-width:74px">
+          <div class="sym">${sym}</div>
+          <div class="verdict" style="color:${vColor}">${verdict}${score!==0?` (${score>0?"+":""}${score})`:""}</div>
+        </div>
+        <div style="min-width:120px">
+          <div class="px">${q && q.c ? q.c.toFixed(2) : "—"}</div>
+          <div class="chg ${chgCls}">${chg!=null ? `${chg>=0?"+":""}${chg.toFixed(2)}% · ${q.d>=0?"+":""}${q.d.toFixed(2)}` : "loading"}</div>
+        </div>
+        ${sparkSVG(series)}
+        <button class="xbtn" data-sym="${sym}">✕</button>
+      </div>
+      <div class="chips">${(r.sigs||[]).map(chipHTML).join("")}${status}</div>
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".xbtn").forEach(b=>b.addEventListener("click",()=>{
+    const s=b.dataset.sym;
+    symbols = symbols.filter(x=>x!==s);
+    delete state[s];
+    render();
+  }));
+}
+
+// ── wiring ──
+async function addSymbol(){
+  const inp = document.getElementById("symInput");
+  const sym = inp.value.trim().toUpperCase();
+  inp.value = "";
+  if (!sym || symbols.includes(sym)) return;
+  symbols.push(sym);
+  state[sym] = {session:[]};
+  render();
+  refresh();
+  try{
+    const candles = await loadCandles(sym);
+    state[sym].candles = candles;
+    state[sym].candleErr = null;
+    state[sym].sigs = buildIndicators(candles);
+  }catch(e){
+    state[sym].candles = null;
+    state[sym].candleErr = e.message;
+  }
+  render();
+}
+
+function connect(){
+  const k = document.getElementById("keyInput").value.trim();
+  if (!k) return;
+  KEY = k;
+  document.getElementById("gate").style.display = "none";
+  document.getElementById("addbar").style.display = "flex";
+  document.getElementById("empty").style.display = "block";
+  timer = setInterval(refresh, POLL_MS);
+}
+
+document.getElementById("connectBtn").addEventListener("click", connect);
+document.getElementById("keyInput").addEventListener("keydown", e=>{ if(e.key==="Enter") connect(); });
+document.getElementById("trackBtn").addEventListener("click", addSymbol);
+document.getElementById("symInput").addEventListener("keydown", e=>{ if(e.key==="Enter") addSymbol(); });
+</script>
+</body>
+</html>
