@@ -2,63 +2,136 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Signal Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#0C1017; --panel:#131A24; --panel2:#0F1520; --edge:#1F2A38; --ink:#D8DEE6;
-  --dim:#6B7686; --amber:#E8A33D; --up:#3FB68B; --dn:#E05C5C; --flat:#8A93A3;
+  --bg:#0A0E14; --panel:#111722; --panel2:#0D131C; --edge:#1C2634; --edge2:#26334a;
+  --ink:#E2E8F0; --dim:#66788E; --amber:#E8A33D; --amber2:#F5C069;
+  --up:#3FB68B; --dn:#E05C5C; --flat:#7C8A9E; --info:#7FB4D8;
+  --disp:'Space Grotesk',sans-serif; --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
 }
-*{box-sizing:border-box; margin:0; padding:0;}
-body{background:var(--bg); color:var(--ink); min-height:100vh;
-  font-family:'SFMono-Regular','JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
-  padding:18px 14px 70px; font-size:13px;}
-.wrap{max-width:940px; margin:0 auto;}
-header{display:flex; align-items:baseline; justify-content:space-between;
-  border-bottom:1px solid var(--edge); padding-bottom:10px; margin-bottom:12px; flex-wrap:wrap; gap:6px;}
-.eyebrow{font-size:11px; color:var(--amber); letter-spacing:.22em;}
-h1{font-size:19px; font-weight:700;}
-.meta{font-size:10px; color:var(--dim);}
-nav{display:flex; gap:2px; margin-bottom:14px; border:1px solid var(--edge); border-radius:4px; overflow:hidden; width:fit-content;}
-nav button{background:var(--panel2); color:var(--dim); border:none; padding:8px 16px; font-family:inherit; font-size:12px; font-weight:700; letter-spacing:.08em; cursor:pointer;}
-nav button.on{background:var(--panel); color:var(--amber);}
-.tab{display:none;} .tab.on{display:block;}
-input,select,textarea{background:var(--panel2); border:1px solid var(--edge); border-radius:3px; color:var(--ink); padding:8px 10px; font-family:inherit; font-size:13px; outline:none; width:100%;}
-input:focus,select:focus{border-color:var(--amber);}
-button.solid{background:var(--amber); color:#14100A; border:none; border-radius:3px; padding:8px 16px; font-family:inherit; font-weight:700; font-size:12px; cursor:pointer;}
-button.line{background:transparent; color:var(--amber); border:1px solid var(--amber); border-radius:3px; padding:8px 14px; font-family:inherit; font-weight:700; font-size:12px; cursor:pointer;}
-button.ghost{background:none; border:none; color:var(--dim); font-family:inherit; font-size:12px; cursor:pointer; padding:4px 8px;}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html{scroll-behavior:smooth;}
+body{background:var(--bg); color:var(--ink); min-height:100vh; font-family:var(--mono);
+  font-size:13px; padding:16px 14px calc(84px + env(safe-area-inset-bottom));
+  background-image:radial-gradient(ellipse 80% 40% at 50% -10%, #131C2B 0%, transparent 60%);}
+.wrap{max-width:960px; margin:0 auto;}
+.num{font-variant-numeric:tabular-nums;}
+
+/* ── header ── */
+header{display:flex; align-items:flex-end; justify-content:space-between; padding-bottom:14px; margin-bottom:16px; flex-wrap:wrap; gap:8px;}
+.eyebrow{font-size:10px; color:var(--amber); letter-spacing:.28em; font-weight:500;}
+h1{font-family:var(--disp); font-size:24px; font-weight:700; letter-spacing:-.01em; margin-top:2px;}
+.meta{font-size:10px; color:var(--dim); display:flex; align-items:center; gap:6px;}
+.pulse{width:6px; height:6px; border-radius:50%; background:var(--up);}
+@media (prefers-reduced-motion:no-preference){
+  .pulse{animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+}
+
+/* ── nav ── */
+nav{position:fixed; bottom:0; left:0; right:0; z-index:8; display:flex;
+  background:rgba(13,19,28,.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--edge); padding-bottom:env(safe-area-inset-bottom);}
+nav button{flex:1; background:none; border:none; color:var(--dim); font-family:var(--mono);
+  font-size:10px; letter-spacing:.12em; font-weight:600; padding:13px 0 11px; cursor:pointer;
+  border-top:2px solid transparent; transition:color .15s;}
+nav button.on{color:var(--amber); border-top-color:var(--amber);}
+@media(min-width:720px){
+  nav{position:static; width:fit-content; border:1px solid var(--edge); border-radius:8px;
+    overflow:hidden; margin-bottom:18px; background:var(--panel2); backdrop-filter:none;}
+  nav button{padding:9px 22px; border-top:none; border-bottom:2px solid transparent;}
+  nav button.on{border-bottom-color:var(--amber); background:var(--panel);}
+  body{padding-bottom:40px;}
+}
+.tab{display:none;} .tab.on{display:block; animation:fadein .2s ease;}
+@keyframes fadein{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){.tab.on{animation:none}}
+
+/* ── controls ── */
+input,select{background:var(--panel2); border:1px solid var(--edge); border-radius:6px;
+  color:var(--ink); padding:10px 12px; font-family:var(--mono); font-size:13px; outline:none;
+  width:100%; transition:border-color .15s;}
+input:focus,select:focus{border-color:var(--amber); box-shadow:0 0 0 3px #E8A33D1A;}
+input::placeholder{color:#465468;}
+button.solid{background:linear-gradient(180deg,var(--amber2),var(--amber)); color:#161006;
+  border:none; border-radius:6px; padding:10px 20px; font-family:var(--mono); font-weight:600;
+  font-size:12px; letter-spacing:.04em; cursor:pointer;}
+button.solid:active{transform:translateY(1px);}
+button.line{background:transparent; color:var(--amber); border:1px solid #E8A33D66;
+  border-radius:6px; padding:10px 16px; font-family:var(--mono); font-weight:600; font-size:12px; cursor:pointer;}
+button.ghost{background:none; border:none; color:var(--dim); font-family:var(--mono);
+  font-size:11px; cursor:pointer; padding:6px 10px;}
 .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
-.card{background:var(--panel); border:1px solid var(--edge); border-left:3px solid var(--flat); border-radius:4px; padding:12px 14px; margin-bottom:10px;}
 .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
 @media(max-width:640px){.grid2{grid-template-columns:1fr;}}
-.lbl{font-size:10px; color:var(--dim); letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; display:block;}
-.chip{display:inline-flex; align-items:baseline; gap:5px; padding:3px 8px; border-radius:3px; font-size:12px; margin:2px 3px 2px 0;}
-.chip .k{font-size:10px; color:var(--dim); letter-spacing:.05em;}
-.chip .n{font-size:10px;}
-.big{font-size:20px; font-weight:700;}
+.lbl{font-size:10px; color:var(--dim); letter-spacing:.14em; text-transform:uppercase;
+  margin-bottom:5px; display:block; font-weight:500;}
+
+/* ── cards ── */
+.card{background:linear-gradient(180deg,var(--panel),var(--panel2)); border:1px solid var(--edge);
+  border-radius:10px; padding:14px 16px; margin-bottom:10px; position:relative; overflow:hidden;}
+.card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--vc,var(--flat)); border-radius:3px 0 0 3px;}
+.sym-name{font-family:var(--disp); font-size:18px; font-weight:700; letter-spacing:.01em;}
+.verdict{font-size:10px; letter-spacing:.14em; font-weight:600; margin-top:1px;}
+.big{font-family:var(--disp); font-size:22px; font-weight:700;}
+.delta{display:inline-block; font-size:11px; font-weight:600; padding:2px 7px; border-radius:20px; margin-top:2px;}
+.delta.u{background:#3FB68B1C; color:var(--up);}
+.delta.d{background:#E05C5C1C; color:var(--dn);}
+.delta.f{background:#7C8A9E1C; color:var(--flat);}
+
+/* signal meter — the signature */
+.meter{display:flex; gap:3px; align-items:center; margin:2px 0;}
+.meter i{width:14px; height:5px; border-radius:2px; background:var(--edge2); transition:background .25s;}
+.meter i.neg{background:var(--dn); box-shadow:0 0 6px #E05C5C55;}
+.meter i.pos{background:var(--up); box-shadow:0 0 6px #3FB68B55;}
+.meter .mid{width:1px; height:9px; background:var(--edge2); border-radius:0;}
+
+.chip{display:inline-flex; align-items:baseline; gap:5px; padding:4px 9px; border-radius:5px;
+  font-size:12px; margin:2px 4px 2px 0; border:1px solid;}
+.chip .k{font-size:9px; color:var(--dim); letter-spacing:.06em;}
+.chip .n{font-size:9px; letter-spacing:.02em;}
 .u{color:var(--up);} .d{color:var(--dn);} .f{color:var(--flat);} .a{color:var(--amber);}
-.dimtx{color:var(--dim); font-size:11px; line-height:1.5;}
-.stat{background:var(--panel2); border:1px solid var(--edge); border-radius:3px; padding:10px 12px; text-align:center; flex:1; min-width:90px;}
-.stat .v{font-size:17px; font-weight:700;}
-table{width:100%; border-collapse:collapse; font-size:12px;}
-th{color:var(--dim); font-size:10px; letter-spacing:.08em; text-align:left; padding:6px 8px; border-bottom:1px solid var(--edge);}
-td{padding:7px 8px; border-bottom:1px solid var(--edge);}
+.dimtx{color:var(--dim); font-size:11px; line-height:1.55;}
+
+/* skeleton */
+.skel{border-radius:4px; background:linear-gradient(90deg,var(--edge) 25%,var(--edge2) 50%,var(--edge) 75%);
+  background-size:200% 100%;}
+@media (prefers-reduced-motion:no-preference){
+  .skel{animation:sk 1.4s ease infinite;}
+  @keyframes sk{from{background-position:200% 0}to{background-position:-200% 0}}
+}
+
+/* stats + tables */
+.stat{background:var(--panel2); border:1px solid var(--edge); border-radius:8px;
+  padding:12px; text-align:center; flex:1; min-width:88px;}
+.stat .v{font-family:var(--disp); font-size:18px; font-weight:700;}
 details summary{cursor:pointer; list-style:none;}
 details summary::-webkit-details-marker{display:none;}
-.news-item{padding:7px 0; border-bottom:1px solid var(--edge); font-size:12px; line-height:1.4;}
+details[open] .expand-hint{display:none;}
+.news-item{padding:8px 0; border-bottom:1px solid var(--edge); font-size:12px; line-height:1.45;}
+.news-item:last-child{border-bottom:none;}
 .news-item a{color:var(--ink); text-decoration:none;}
-.news-item a:active{color:var(--amber);}
-.news-item .src{font-size:10px; color:var(--dim);}
-footer{font-size:10px; color:var(--dim); margin-top:24px; line-height:1.6;}
-.toast{position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:var(--panel); border:1px solid var(--amber); color:var(--amber); padding:8px 18px; border-radius:4px; font-size:12px; display:none; z-index:9;}
+.news-item .src{font-size:10px; color:var(--dim); margin-top:2px;}
+.section-lbl{font-size:10px; color:var(--dim); letter-spacing:.16em; margin:14px 0 6px; font-weight:600;}
+footer{font-size:10px; color:var(--dim); margin-top:26px; line-height:1.7;}
+.toast{position:fixed; bottom:calc(74px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%);
+  background:var(--panel); border:1px solid var(--amber); color:var(--amber2); padding:9px 20px;
+  border-radius:8px; font-size:12px; display:none; z-index:9; white-space:nowrap; box-shadow:0 8px 30px #0009;}
+@media(min-width:720px){.toast{bottom:24px;}}
+.empty-state{border:1px dashed var(--edge2); border-radius:10px; padding:28px 20px; text-align:center; color:var(--dim); font-size:12px; line-height:1.7;}
+.empty-state b{color:var(--ink); font-family:var(--disp); font-size:14px; display:block; margin-bottom:4px;}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header>
   <div><div class="eyebrow">SIGNAL DESK</div><h1>Trading Dashboard</h1></div>
-  <div class="meta" id="meta">idle</div>
+  <div class="meta"><span class="pulse" id="pulseDot" style="display:none"></span><span id="meta">connect keys in SETUP</span></div>
 </header>
 
 <nav>
@@ -68,82 +141,63 @@ footer{font-size:10px; color:var(--dim); margin-top:24px; line-height:1.6;}
   <button data-tab="config">SETUP</button>
 </nav>
 
-<!-- ══ SETUP ══ -->
-<div class="tab" id="tab-config">
-  <div class="card">
-    <span class="lbl">Finnhub API key — required (quotes + news) · free at finnhub.io</span>
-    <input type="password" id="cfgFh" placeholder="finnhub key">
-    <div style="height:10px"></div>
-    <span class="lbl">Twelve Data API key — optional but recommended (daily candles → full indicators) · free at twelvedata.com</span>
-    <input type="password" id="cfgTd" placeholder="twelve data key">
-    <div style="height:10px"></div>
-    <div class="grid2">
-      <div><span class="lbl">Account size ($) — for position sizing</span><input type="number" id="cfgAcct" placeholder="10000"></div>
-      <div><span class="lbl">Default risk per trade (%)</span><input type="number" id="cfgRisk" value="1" step="0.25"></div>
-    </div>
-    <div style="height:12px"></div>
-    <button class="solid" onclick="saveCfg()">Save</button>
-    <div class="dimtx" style="margin-top:10px">Keys and settings save to this browser only (localStorage). Nothing is sent anywhere except directly to Finnhub / Twelve Data.</div>
-  </div>
-</div>
-
 <!-- ══ MARKET ══ -->
 <div class="tab on" id="tab-market">
-  <div class="row" style="margin-bottom:12px; max-width:420px;">
-    <input id="symInput" placeholder="add ticker · AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
+  <div class="row" style="margin-bottom:14px; max-width:440px;">
+    <input id="symInput" placeholder="Add ticker — AAPL, MSTR, SPY…" style="flex:1; text-transform:uppercase;">
     <button class="line" onclick="addSymbol()">Track</button>
   </div>
   <div id="cards"></div>
-  <div class="dimtx" id="mktEmpty">No tickers tracked. Add one above. Set your API keys in SETUP first.</div>
+  <div class="empty-state" id="mktEmpty"><b>Nothing tracked yet</b>Add a ticker above. Quotes refresh every 15s; six indicators compute from a year of daily candles.<br>First: add your API keys in SETUP.</div>
 </div>
 
 <!-- ══ SIZER ══ -->
 <div class="tab" id="tab-sizer">
   <div class="card">
     <div class="grid2">
-      <div><span class="lbl">Ticker (optional — pulls live price & ATR stop)</span>
-        <select id="szSym"><option value="">manual</option></select></div>
+      <div><span class="lbl">Ticker — pulls live price & ATR</span>
+        <select id="szSym"><option value="">manual entry</option></select></div>
       <div><span class="lbl">Direction</span>
         <select id="szSide"><option value="long">Long</option><option value="short">Short</option></select></div>
-      <div><span class="lbl">Entry price</span><input type="number" id="szEntry" step="0.01"></div>
-      <div><span class="lbl">Stop price</span><input type="number" id="szStop" step="0.01"></div>
-      <div><span class="lbl">Target price (optional)</span><input type="number" id="szTarget" step="0.01"></div>
-      <div><span class="lbl">Risk this trade (%)</span><input type="number" id="szRisk" step="0.25"></div>
+      <div><span class="lbl">Entry</span><input type="number" id="szEntry" step="0.01" inputmode="decimal"></div>
+      <div><span class="lbl">Stop</span><input type="number" id="szStop" step="0.01" inputmode="decimal"></div>
+      <div><span class="lbl">Target — optional</span><input type="number" id="szTarget" step="0.01" inputmode="decimal"></div>
+      <div><span class="lbl">Risk this trade %</span><input type="number" id="szRisk" step="0.25" inputmode="decimal"></div>
     </div>
-    <div style="height:10px"></div>
+    <div style="height:12px"></div>
     <div class="row">
       <button class="solid" onclick="calcSize()">Calculate</button>
-      <button class="ghost" onclick="atrStop()">suggest ATR stop</button>
+      <button class="ghost" onclick="atrStop()">↳ suggest ATR stop</button>
     </div>
   </div>
   <div class="row" id="szOut" style="display:none">
-    <div class="stat"><span class="lbl">Shares</span><div class="v a" id="szShares">—</div></div>
-    <div class="stat"><span class="lbl">$ at risk</span><div class="v" id="szDollar">—</div></div>
-    <div class="stat"><span class="lbl">Position $</span><div class="v" id="szPos">—</div></div>
-    <div class="stat"><span class="lbl">R:R</span><div class="v" id="szRR">—</div></div>
+    <div class="stat"><span class="lbl">Shares</span><div class="v a num" id="szShares">—</div></div>
+    <div class="stat"><span class="lbl">$ at risk</span><div class="v num" id="szDollar">—</div></div>
+    <div class="stat"><span class="lbl">Position</span><div class="v num" id="szPos">—</div></div>
+    <div class="stat"><span class="lbl">R : R</span><div class="v num" id="szRR">—</div></div>
   </div>
   <div class="dimtx" id="szNote" style="margin-top:10px"></div>
 </div>
 
 <!-- ══ JOURNAL ══ -->
 <div class="tab" id="tab-journal">
-  <div class="row" style="margin-bottom:12px">
-    <div class="stat"><span class="lbl">Trades</span><div class="v" id="jN">0</div></div>
-    <div class="stat"><span class="lbl">Win rate</span><div class="v" id="jWin">—</div></div>
-    <div class="stat"><span class="lbl">Avg R</span><div class="v" id="jAvgR">—</div></div>
-    <div class="stat"><span class="lbl">Expectancy</span><div class="v" id="jExp">—</div></div>
+  <div class="row" style="margin-bottom:14px">
+    <div class="stat"><span class="lbl">Trades</span><div class="v num" id="jN">0</div></div>
+    <div class="stat"><span class="lbl">Win rate</span><div class="v num" id="jWin">—</div></div>
+    <div class="stat"><span class="lbl">Avg R</span><div class="v num" id="jAvgR">—</div></div>
+    <div class="stat"><span class="lbl">Expectancy</span><div class="v num" id="jExp">—</div></div>
   </div>
   <div class="card">
     <span class="lbl">Log a paper trade</span>
     <div class="grid2">
       <input id="jSym" placeholder="ticker" style="text-transform:uppercase">
       <select id="jSide"><option value="long">Long</option><option value="short">Short</option></select>
-      <input type="number" id="jEntry" placeholder="entry" step="0.01">
-      <input type="number" id="jStop" placeholder="stop" step="0.01">
-      <input type="number" id="jShares" placeholder="shares">
-      <input id="jNote" placeholder="setup / reason (be honest)">
+      <input type="number" id="jEntry" placeholder="entry" step="0.01" inputmode="decimal">
+      <input type="number" id="jStop" placeholder="stop" step="0.01" inputmode="decimal">
+      <input type="number" id="jShares" placeholder="shares" inputmode="numeric">
+      <input id="jNote" placeholder="setup / reason — be honest">
     </div>
-    <div style="height:10px"></div>
+    <div style="height:12px"></div>
     <div class="row">
       <button class="solid" onclick="addTrade()">Log trade</button>
       <button class="ghost" onclick="fillEntry()">use live price</button>
@@ -152,11 +206,31 @@ footer{font-size:10px; color:var(--dim); margin-top:24px; line-height:1.6;}
   </div>
   <div id="jOpen"></div>
   <div id="jClosed"></div>
+  <div class="empty-state" id="jEmpty" style="display:none"><b>No trades logged</b>Paper trade first. 20 logged trades tells you your expectancy — the only number that predicts whether real money survives.</div>
+</div>
+
+<!-- ══ SETUP ══ -->
+<div class="tab" id="tab-config">
+  <div class="card">
+    <span class="lbl">Finnhub key — required · quotes + news · finnhub.io</span>
+    <input type="password" id="cfgFh" placeholder="finnhub key" autocomplete="off">
+    <div style="height:12px"></div>
+    <span class="lbl">Twelve Data key — recommended · daily candles → indicators · twelvedata.com</span>
+    <input type="password" id="cfgTd" placeholder="twelve data key" autocomplete="off">
+    <div style="height:12px"></div>
+    <div class="grid2">
+      <div><span class="lbl">Account size $</span><input type="number" id="cfgAcct" inputmode="numeric"></div>
+      <div><span class="lbl">Default risk / trade %</span><input type="number" id="cfgRisk" step="0.25" inputmode="decimal"></div>
+    </div>
+    <div style="height:14px"></div>
+    <button class="solid" onclick="saveCfg()">Save</button>
+    <div class="dimtx" style="margin-top:10px">Keys live in this browser's localStorage only and are sent solely to Finnhub / Twelve Data.</div>
+  </div>
 </div>
 
 <footer>
-  Indicators: RSI-14 · SMA 20/50 · MACD 12-26-9 · Bollinger 20,2 · ATR-14 · 52-week range. Composite = sum of signal directions.
-  Journal R-multiple = P/L ÷ initial risk. Educational tool — not investment advice.
+  RSI-14 · SMA 20/50 · MACD 12-26-9 · Bollinger 20,2 · ATR-14 · 52-week range. Meter = sum of signal directions.
+  Journal R = P/L ÷ initial risk. Educational tool — not investment advice.
 </footer>
 </div>
 <div class="toast" id="toast"></div>
@@ -164,50 +238,48 @@ footer{font-size:10px; color:var(--dim); margin-top:24px; line-height:1.6;}
 <script>
 "use strict";
 /* ══ state ══ */
-const LS = {
-  get:(k,d)=>{try{const v=localStorage.getItem("sd_"+k); return v?JSON.parse(v):d;}catch(e){return d;}},
-  set:(k,v)=>{try{localStorage.setItem("sd_"+k, JSON.stringify(v));}catch(e){}}
-};
-let cfg = LS.get("cfg", {fh:"", td:"", acct:10000, risk:1});
-let symbols = LS.get("syms", []);
-let trades = LS.get("trades", []);
-const state = {};   // sym -> {quote, ohlc, sigs, atr, hi52, lo52, news, candleErr}
-const POLL_MS = 15000;
-let tick = 0;
-const tdQueue = []; let tdBusy = false;
-
-function toast(msg){const t=document.getElementById("toast"); t.textContent=msg; t.style.display="block"; setTimeout(()=>t.style.display="none", 2600);}
+const LS={get:(k,d)=>{try{const v=localStorage.getItem("sd_"+k);return v?JSON.parse(v):d;}catch(e){return d;}},
+          set:(k,v)=>{try{localStorage.setItem("sd_"+k,JSON.stringify(v));}catch(e){}}};
+let cfg=LS.get("cfg",{fh:"",td:"",acct:10000,risk:1});
+let symbols=LS.get("syms",[]);
+let trades=LS.get("trades",[]);
+const state={};
+const POLL_MS=15000;
+let tick=0;
+const tdQueue=[]; let tdBusy=false;
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",2600);}
 
 /* ══ math ══ */
 const sma=(a,n)=>a.length<n?null:a.slice(-n).reduce((s,v)=>s+v,0)/n;
-function stdev(a,n){if(a.length<n)return null; const s=a.slice(-n), m=s.reduce((x,y)=>x+y,0)/n;
+function stdev(a,n){if(a.length<n)return null;const s=a.slice(-n),m=s.reduce((x,y)=>x+y,0)/n;
   return Math.sqrt(s.reduce((x,y)=>x+(y-m)**2,0)/n);}
-function rsi(c,n=14){if(c.length<n+1)return null; let g=0,l=0;
-  for(let i=1;i<=n;i++){const d=c[i]-c[i-1]; d>=0?g+=d:l-=d;}
-  let ag=g/n, al=l/n;
-  for(let i=n+1;i<c.length;i++){const d=c[i]-c[i-1]; ag=(ag*(n-1)+Math.max(d,0))/n; al=(al*(n-1)+Math.max(-d,0))/n;}
+function rsi(c,n=14){if(c.length<n+1)return null;let g=0,l=0;
+  for(let i=1;i<=n;i++){const d=c[i]-c[i-1];d>=0?g+=d:l-=d;}
+  let ag=g/n,al=l/n;
+  for(let i=n+1;i<c.length;i++){const d=c[i]-c[i-1];ag=(ag*(n-1)+Math.max(d,0))/n;al=(al*(n-1)+Math.max(-d,0))/n;}
   return al===0?100:100-100/(1+ag/al);}
-function emaS(a,n){if(a.length<n)return[]; const k=2/(n+1), o=[a.slice(0,n).reduce((s,v)=>s+v,0)/n];
-  for(let i=n;i<a.length;i++)o.push(a[i]*k+o[o.length-1]*(1-k)); return o;}
-function macd(c){if(c.length<35)return null; const e12=emaS(c,12), e26=emaS(c,26);
-  const line=e26.map((v,i)=>e12[i+14]-v); const sg=emaS(line,9); if(!sg.length)return null;
-  return {hist:line[line.length-1]-sg[sg.length-1]};}
-function atr14(o){if(!o||o.length<15)return null; let trs=[];
+function emaS(a,n){if(a.length<n)return[];const k=2/(n+1),o=[a.slice(0,n).reduce((s,v)=>s+v,0)/n];
+  for(let i=n;i<a.length;i++)o.push(a[i]*k+o[o.length-1]*(1-k));return o;}
+function smaSeries(a,n){const o=[];for(let i=n-1;i<a.length;i++)o.push(a.slice(i-n+1,i+1).reduce((s,v)=>s+v,0)/n);return o;}
+function macd(c){if(c.length<35)return null;const e12=emaS(c,12),e26=emaS(c,26);
+  const line=e26.map((v,i)=>e12[i+14]-v);const sg=emaS(line,9);if(!sg.length)return null;
+  return{hist:line[line.length-1]-sg[sg.length-1]};}
+function atr14(o){if(!o||o.length<15)return null;let trs=[];
   for(let i=1;i<o.length;i++){const h=o[i].h,l=o[i].l,pc=o[i-1].c;
-    trs.push(Math.max(h-l, Math.abs(h-pc), Math.abs(l-pc)));}
+    trs.push(Math.max(h-l,Math.abs(h-pc),Math.abs(l-pc)));}
   return trs.slice(-14).reduce((s,v)=>s+v,0)/14;}
 
 function buildSigs(sym){
-  const st=state[sym]; if(!st) return;
-  const o=st.ohlc; const closes=o?o.map(x=>x.c):null;
-  const q=st.quote; const px=q&&q.c?q.c:(closes?closes[closes.length-1]:null);
-  if(!closes||!px){st.sigs=[]; return;}
-  const c=[...closes.slice(0,-1), px];
+  const st=state[sym];if(!st)return;
+  const o=st.ohlc;const closes=o?o.map(x=>x.c):null;
+  const q=st.quote;const px=q&&q.c?q.c:(closes?closes[closes.length-1]:null);
+  if(!closes||!px){st.sigs=[];return;}
+  const c=[...closes.slice(0,-1),px];
   const sig=[];
-  const r=rsi(c); if(r!=null)sig.push({k:"RSI",v:r.toFixed(1),dir:r>70?-1:r<30?1:0,note:r>70?"overbought":r<30?"oversold":"neutral"});
-  const s20=sma(c,20), s50=sma(c,50);
-  if(s20&&s50)sig.push({k:"SMA 20/50",v:s20>s50?"20>50":"20<50",dir:s20>s50?1:-1,note:s20>s50?"bull":"bear"});
-  const md=macd(c); if(md)sig.push({k:"MACD",v:md.hist.toFixed(2),dir:md.hist>0?1:md.hist<0?-1:0,note:md.hist>0?"hist +":"hist −"});
+  const r=rsi(c);if(r!=null)sig.push({k:"RSI",v:r.toFixed(1),dir:r>70?-1:r<30?1:0,note:r>70?"overbought":r<30?"oversold":"neutral"});
+  const s20=sma(c,20),s50=sma(c,50);
+  if(s20&&s50)sig.push({k:"SMA 20/50",v:s20>s50?"20 › 50":"20 ‹ 50",dir:s20>s50?1:-1,note:s20>s50?"bull":"bear"});
+  const md=macd(c);if(md)sig.push({k:"MACD",v:md.hist.toFixed(2),dir:md.hist>0?1:md.hist<0?-1:0,note:md.hist>0?"hist +":"hist −"});
   const sd=stdev(c,20);
   if(s20&&sd){const bp=(px-(s20-2*sd))/(4*sd);
     sig.push({k:"BB",v:(bp*100).toFixed(0)+"%",dir:bp>1?-1:bp<0?1:0,note:bp>1?"above band":bp<0?"below band":"in band"});}
@@ -229,8 +301,8 @@ async function fh(path){
   return r.json();
 }
 function queueCandles(sym){
-  if(!cfg.td){state[sym].candleErr="no-td"; return;}
-  tdQueue.push(sym); pumpTd();
+  if(!cfg.td){state[sym].candleErr="no-td";return;}
+  tdQueue.push(sym);pumpTd();
 }
 async function pumpTd(){
   if(tdBusy||!tdQueue.length)return;
@@ -246,9 +318,9 @@ async function pumpTd(){
     state[sym].hi52=Math.max(...yr.map(x=>x.h));
     state[sym].lo52=Math.min(...yr.map(x=>x.l));
     state[sym].candleErr=null;
-    buildSigs(sym); render();
-  }catch(e){state[sym].candleErr=String(e.message||e).slice(0,60); render();}
-  setTimeout(()=>{tdBusy=false; pumpTd();}, 8500); // 8/min limit
+    buildSigs(sym);render();
+  }catch(e){state[sym].candleErr=String(e.message||e).slice(0,60);render();}
+  setTimeout(()=>{tdBusy=false;pumpTd();},8500);
 }
 async function loadNews(sym){
   try{
@@ -259,7 +331,6 @@ async function loadNews(sym){
     render();
   }catch(e){}
 }
-
 let pollBusy=false;
 async function poll(){
   if(pollBusy||!symbols.length||!cfg.fh)return;
@@ -268,82 +339,134 @@ async function poll(){
     try{
       const q=await fh(`/quote?symbol=${sym}`);
       state[sym]=state[sym]||{};
-      state[sym].quote=q; state[sym].err=null;
+      state[sym].quote=q;state[sym].err=null;
       buildSigs(sym);
-    }catch(e){state[sym]=state[sym]||{}; state[sym].err=e.message;}
+    }catch(e){state[sym]=state[sym]||{};state[sym].err=e.message;}
   }
-  pollBusy=false; tick++;
-  document.getElementById("meta").textContent=`quotes 15s · refresh #${tick}`;
-  render(); renderJournal();
+  pollBusy=false;tick++;
+  document.getElementById("pulseDot").style.display="inline-block";
+  document.getElementById("meta").textContent=`live · 15s · #${tick}`;
+  render();renderJournal();
 }
-setInterval(poll, POLL_MS);
+setInterval(poll,POLL_MS);
 
-/* ══ render market ══ */
-function sparkSVG(data,w=132,h=34){
-  if(!data||data.length<2)return `<svg width="${w}" height="${h}"></svg>`;
+/* ══ charts ══ */
+function sparkSVG(data,w=120,h=36){
+  if(!data||data.length<2)return `<div class="skel" style="width:${w}px;height:${h}px"></div>`;
   const min=Math.min(...data),max=Math.max(...data),rg=(max-min)||1;
   const pts=data.map((v,i)=>`${(i/(data.length-1))*w},${(h-3-((v-min)/rg)*(h-6)).toFixed(1)}`).join(" ");
-  const c=data[data.length-1]>=data[0]?"var(--up)":"var(--dn)";
-  return `<svg width="${w}" height="${h}" style="display:block"><polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.6"/></svg>`;
+  const up=data[data.length-1]>=data[0];
+  const c=up?"var(--up)":"var(--dn)";
+  const last=pts.split(" ").pop();
+  return `<svg width="${w}" height="${h}" style="display:block">
+    <polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.7" stroke-linejoin="round"/>
+    <circle cx="${last.split(",")[0]}" cy="${last.split(",")[1]}" r="2.2" fill="${c}"/></svg>`;
+}
+function candleSVG(ohlc,w,h=170){
+  if(!ohlc||ohlc.length<10)return "";
+  const d=ohlc.slice(-60);
+  const closes=ohlc.map(x=>x.c);
+  const s20=smaSeries(closes,20).slice(-60), s50=smaSeries(closes,50).slice(-60);
+  const hi=Math.max(...d.map(x=>x.h)), lo=Math.min(...d.map(x=>x.l)), rg=(hi-lo)||1;
+  const pad=6, cw=w/d.length;
+  const Y=v=>pad+(1-(v-lo)/rg)*(h-2*pad);
+  let bars="";
+  d.forEach((x,i)=>{
+    const cx=i*cw+cw/2;
+    const col=x.c>=x.o?"var(--up)":"var(--dn)";
+    const bt=Y(Math.max(x.o,x.c)), bb=Y(Math.min(x.o,x.c));
+    bars+=`<line x1="${cx.toFixed(1)}" y1="${Y(x.h).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${Y(x.l).toFixed(1)}" stroke="${col}" stroke-width="1"/>
+    <rect x="${(cx-cw*0.3).toFixed(1)}" y="${bt.toFixed(1)}" width="${(cw*0.6).toFixed(1)}" height="${Math.max(bb-bt,1).toFixed(1)}" fill="${col}"/>`;
+  });
+  const line=(arr,col)=>{
+    if(arr.length<2)return "";
+    const off=d.length-arr.length;
+    const pts=arr.map((v,i)=>`${((i+off)*cw+cw/2).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+    return `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.2" opacity="0.85"/>`;
+  };
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" style="display:block;margin-top:10px">
+    ${bars}${line(s20,"var(--amber)")}${line(s50,"var(--info)")}
+  </svg>
+  <div class="dimtx" style="display:flex;gap:14px;margin-top:4px">
+    <span>60 sessions</span><span class="a">— SMA20</span><span style="color:var(--info)">— SMA50</span>
+    <span class="num">H ${hi.toFixed(2)} · L ${lo.toFixed(2)}</span></div>`;
+}
+function meterHTML(score){
+  let seg="";
+  for(let i=3;i>=1;i--)seg+=`<i class="${score<=-i?"neg":""}"></i>`;
+  seg+=`<span class="mid"></span>`;
+  for(let i=1;i<=3;i++)seg+=`<i class="${score>=i?"pos":""}"></i>`;
+  return `<div class="meter" title="composite ${score}">${seg}</div>`;
 }
 function chipHTML(s){
   const c=s.dir>0?"var(--up)":s.dir<0?"var(--dn)":"var(--flat)";
-  return `<span class="chip" style="border:1px solid ${c}44;background:${c}12"><span class="k">${s.k}</span><span style="color:${c};font-weight:600">${s.v}</span><span class="n" style="color:${c}">${s.note}</span></span>`;
+  return `<span class="chip" style="border-color:${c}33;background:${c}0E"><span class="k">${s.k}</span><span class="num" style="color:${c};font-weight:600">${s.v}</span><span class="n" style="color:${c}">${s.note}</span></span>`;
 }
+
+/* ══ render market ══ */
 function render(){
   document.getElementById("mktEmpty").style.display=symbols.length?"none":"block";
   const box=document.getElementById("cards");
+  const openSet=new Set([...box.querySelectorAll("details[open]")].map(d=>d.dataset.sym));
   box.innerHTML=symbols.map(sym=>{
-    const st=state[sym]||{}; const q=st.quote;
-    const chg=q?q.dp:null, chgCls=chg==null?"f":chg>=0?"u":"d";
+    const st=state[sym]||{};const q=st.quote;
+    const chg=q?q.dp:null,chgCls=chg==null?"f":chg>=0?"u":"d";
     const score=scoreOf(st.sigs);
-    const verdict=score>=3?"BULLISH":score<=-3?"BEARISH":score>0?"lean bull":score<0?"lean bear":"MIXED";
+    const verdict=score>=3?"BULLISH":score<=-3?"BEARISH":score>0?"LEAN BULL":score<0?"LEAN BEAR":"MIXED";
     const vc=score>0?"var(--up)":score<0?"var(--dn)":"var(--flat)";
     const series=st.ohlc?st.ohlc.slice(-60).map(x=>x.c):null;
     let status="";
-    if(st.candleErr==="no-td")status=`<span class="dimtx">add a Twelve Data key in SETUP for indicators</span>`;
-    else if(st.candleErr)status=`<span class="dimtx">candles: ${st.candleErr}</span>`;
-    if(st.err)status+=`<span class="d" style="font-size:11px">${st.err==="bad-key"?"invalid Finnhub key":st.err==="rate"?"rate limited":"error: "+st.err}</span>`;
+    if(st.candleErr==="no-td")status=`<div class="dimtx" style="margin-top:4px">Add a Twelve Data key in SETUP to unlock indicators</div>`;
+    else if(st.candleErr)status=`<div class="dimtx" style="margin-top:4px">candles: ${st.candleErr}</div>`;
+    if(st.err)status+=`<div class="d" style="font-size:11px;margin-top:4px">${st.err==="bad-key"?"invalid Finnhub key":st.err==="rate"?"rate limited — easing off":"error: "+st.err}</div>`;
     const newsHTML=(st.news||[]).map(n=>`<div class="news-item"><a href="${n.url}" target="_blank" rel="noopener">${(n.headline||"").slice(0,110)}</a><div class="src">${n.source||""} · ${n.datetime?new Date(n.datetime*1000).toLocaleDateString():""}</div></div>`).join("");
-    return `<div class="card" style="border-left-color:${vc}">
-      <details ontoggle="if(this.open&&!(state['${sym}']||{}).news)loadNews('${sym}')">
+    const priceBlock=q&&q.c
+      ?`<div class="big num">${q.c.toFixed(2)}</div><span class="delta ${chgCls} num">${chg!=null?`${chg>=0?"+":""}${chg.toFixed(2)}%`:"—"}</span>`
+      :`<div class="skel" style="width:84px;height:24px;margin-bottom:6px"></div><div class="skel" style="width:52px;height:14px"></div>`;
+    return `<div class="card" style="--vc:${vc}">
+      <details data-sym="${sym}" ${openSet.has(sym)?"open":""} ontoggle="if(this.open&&!(state['${sym}']||{}).news)loadNews('${sym}')">
       <summary><div class="row" style="justify-content:space-between">
-        <div style="min-width:74px"><div style="font-size:16px;font-weight:700">${sym}</div>
-          <div style="font-size:10px;letter-spacing:.08em;color:${vc}">${verdict}${score!==0?` (${score>0?"+":""}${score})`:""}</div></div>
-        <div style="min-width:110px"><div class="big">${q&&q.c?q.c.toFixed(2):"—"}</div>
-          <div class="${chgCls}" style="font-size:11px">${chg!=null?`${chg>=0?"+":""}${chg.toFixed(2)}%`:"loading"}</div></div>
+        <div style="min-width:86px">
+          <div class="sym-name">${sym}</div>
+          <div class="verdict" style="color:${vc}">${verdict}</div>
+          ${meterHTML(score)}
+        </div>
+        <div style="min-width:100px">${priceBlock}</div>
         ${sparkSVG(series)}
         <button class="ghost" onclick="event.preventDefault();removeSym('${sym}')">✕</button>
-      </div></summary>
-      <div style="margin-top:9px">${(st.sigs||[]).map(chipHTML).join("")}${status}</div>
-      <div style="margin-top:8px">
-        ${st.hi52?`<span class="dimtx">52W: ${st.lo52.toFixed(2)} – ${st.hi52.toFixed(2)}</span>`:""}
-        ${st.atr&&q&&q.c?`<div class="dimtx">ATR stop guide (long): ${(q.c-1.5*st.atr).toFixed(2)} (1.5×ATR below)</div>`:""}
       </div>
-      <div style="margin-top:6px">${newsHTML||`<span class="dimtx">tap to expand — news loads here</span>`}</div>
+      <div class="dimtx expand-hint" style="margin-top:6px">tap for chart · signals · news</div>
+      </summary>
+      <div style="margin-top:10px">${(st.sigs||[]).map(chipHTML).join("")}${status}</div>
+      ${candleSVG(st.ohlc,600)}
+      <div style="margin-top:8px">
+        ${st.hi52?`<span class="dimtx num">52W ${st.lo52.toFixed(2)} – ${st.hi52.toFixed(2)}</span>`:""}
+        ${st.atr&&q&&q.c?`<div class="dimtx num">ATR stop guide (long): ${(q.c-1.5*st.atr).toFixed(2)} — 1.5×ATR below price</div>`:""}
+      </div>
+      <div class="section-lbl">NEWS · 7D</div>
+      <div>${newsHTML||`<span class="dimtx">loading headlines…</span>`}</div>
       </details>
     </div>`;
   }).join("");
-  // sizer symbol dropdown
   const sel=document.getElementById("szSym");
   const cur=sel.value;
-  sel.innerHTML=`<option value="">manual</option>`+symbols.map(s=>`<option ${s===cur?"selected":""}>${s}</option>`).join("");
+  sel.innerHTML=`<option value="">manual entry</option>`+symbols.map(s=>`<option ${s===cur?"selected":""}>${s}</option>`).join("");
 }
 
 /* ══ symbols ══ */
 function addSymbol(){
   const inp=document.getElementById("symInput");
-  const sym=inp.value.trim().toUpperCase(); inp.value="";
+  const sym=inp.value.trim().toUpperCase();inp.value="";
   if(!sym||symbols.includes(sym))return;
-  if(!cfg.fh){toast("Set your Finnhub key in SETUP first"); return;}
-  symbols.push(sym); LS.set("syms",symbols);
+  if(!cfg.fh){toast("Set your Finnhub key in SETUP first");return;}
+  symbols.push(sym);LS.set("syms",symbols);
   state[sym]={};
   queueCandles(sym);
-  poll();
+  render();poll();
 }
 function removeSym(sym){
-  symbols=symbols.filter(x=>x!==sym); LS.set("syms",symbols);
-  delete state[sym]; render();
+  symbols=symbols.filter(x=>x!==sym);LS.set("syms",symbols);
+  delete state[sym];render();
 }
 
 /* ══ sizer ══ */
@@ -353,74 +476,73 @@ function calcSize(){
   const target=+document.getElementById("szTarget").value;
   const riskPct=+document.getElementById("szRisk").value||cfg.risk;
   const side=document.getElementById("szSide").value;
-  if(!entry||!stop){toast("Need entry and stop"); return;}
+  if(!entry||!stop){toast("Need entry and stop");return;}
   const perShare=Math.abs(entry-stop);
-  if(perShare===0){toast("Stop can't equal entry"); return;}
-  if((side==="long"&&stop>=entry)||(side==="short"&&stop<=entry)){toast("Stop is on the wrong side for "+side); return;}
+  if(perShare===0){toast("Stop can't equal entry");return;}
+  if((side==="long"&&stop>=entry)||(side==="short"&&stop<=entry)){toast("Stop is on the wrong side for "+side);return;}
   const riskDollar=cfg.acct*riskPct/100;
   const shares=Math.floor(riskDollar/perShare);
   const posVal=shares*entry;
   document.getElementById("szShares").textContent=shares;
   document.getElementById("szDollar").textContent="$"+(shares*perShare).toFixed(0);
-  document.getElementById("szPos").textContent="$"+posVal.toFixed(0);
-  let rr="—", note=`Risking ${riskPct}% of $${cfg.acct.toLocaleString()} = $${riskDollar.toFixed(0)} max loss. `;
+  document.getElementById("szPos").textContent="$"+posVal.toLocaleString(undefined,{maximumFractionDigits:0});
+  let rr="—",note=`Risking ${riskPct}% of $${cfg.acct.toLocaleString()} = $${riskDollar.toFixed(0)} max loss. `;
   if(target){
     const rew=Math.abs(target-entry);
     rr=(rew/perShare).toFixed(2)+"R";
-    note+=`Target is ${rr} — ${rew/perShare>=2?"solid":"below 2R, consider whether the setup justifies it"}. `;
+    note+=`Target = ${rr}. ${rew/perShare>=2?"Solid asymmetry.":"Below 2R — make sure the setup earns it."} `;
   }
-  if(posVal>cfg.acct)note+=`⚠ Position exceeds account size — this implies margin/leverage.`;
+  if(posVal>cfg.acct)note+=`⚠ Position exceeds account size — implies margin/leverage.`;
   document.getElementById("szRR").textContent=rr;
   document.getElementById("szNote").textContent=note;
   document.getElementById("szOut").style.display="flex";
 }
 function atrStop(){
   const sym=document.getElementById("szSym").value;
-  if(!sym||!state[sym]||!state[sym].atr||!state[sym].quote){toast("Pick a tracked ticker with candle data"); return;}
-  const px=state[sym].quote.c, atr=state[sym].atr;
+  if(!sym||!state[sym]||!state[sym].atr||!state[sym].quote){toast("Pick a tracked ticker with candle data");return;}
+  const px=state[sym].quote.c,atr=state[sym].atr;
   const side=document.getElementById("szSide").value;
   document.getElementById("szEntry").value=px.toFixed(2);
   document.getElementById("szStop").value=(side==="long"?px-1.5*atr:px+1.5*atr).toFixed(2);
-  toast(`1.5×ATR stop from live price (ATR ${atr.toFixed(2)})`);
+  toast(`1.5×ATR stop set — ATR ${atr.toFixed(2)}`);
 }
 
 /* ══ journal ══ */
 function fillEntry(){
   const sym=document.getElementById("jSym").value.trim().toUpperCase();
-  if(!sym||!state[sym]||!state[sym].quote){toast("Track the ticker first"); return;}
+  if(!sym||!state[sym]||!state[sym].quote){toast("Track the ticker first");return;}
   document.getElementById("jEntry").value=state[sym].quote.c.toFixed(2);
 }
 function addTrade(){
-  const t={
-    id:Date.now(), sym:document.getElementById("jSym").value.trim().toUpperCase(),
+  const t={id:Date.now(),sym:document.getElementById("jSym").value.trim().toUpperCase(),
     side:document.getElementById("jSide").value,
     entry:+document.getElementById("jEntry").value,
     stop:+document.getElementById("jStop").value,
     shares:+document.getElementById("jShares").value,
     note:document.getElementById("jNote").value.trim(),
-    opened:new Date().toISOString(), closed:null, exit:null
-  };
-  if(!t.sym||!t.entry||!t.stop||!t.shares){toast("Need ticker, entry, stop, shares"); return;}
-  trades.unshift(t); LS.set("trades",trades);
+    opened:new Date().toISOString(),closed:null,exit:null};
+  if(!t.sym||!t.entry||!t.stop||!t.shares){toast("Need ticker, entry, stop, shares");return;}
+  trades.unshift(t);LS.set("trades",trades);
   ["jSym","jEntry","jStop","jShares","jNote"].forEach(i=>document.getElementById(i).value="");
-  renderJournal(); toast("Logged. Now let it play out.");
+  renderJournal();toast("Logged — now let it play out");
 }
 function closeTrade(id){
-  const t=trades.find(x=>x.id===id); if(!t)return;
+  const t=trades.find(x=>x.id===id);if(!t)return;
   const live=state[t.sym]&&state[t.sym].quote?state[t.sym].quote.c:null;
-  const px=prompt("Exit price:", live?live.toFixed(2):"");
+  const px=prompt("Exit price:",live?live.toFixed(2):"");
   if(px==null||isNaN(+px))return;
-  t.exit=+px; t.closed=new Date().toISOString();
-  LS.set("trades",trades); renderJournal();
+  t.exit=+px;t.closed=new Date().toISOString();
+  LS.set("trades",trades);renderJournal();
 }
-function delTrade(id){trades=trades.filter(x=>x.id!==id); LS.set("trades",trades); renderJournal();}
+function delTrade(id){trades=trades.filter(x=>x.id!==id);LS.set("trades",trades);renderJournal();}
 function rMult(t,px){
-  const risk=Math.abs(t.entry-t.stop); if(!risk)return 0;
+  const risk=Math.abs(t.entry-t.stop);if(!risk)return 0;
   const pl=t.side==="long"?(px-t.entry):(t.entry-px);
   return pl/risk;
 }
 function renderJournal(){
-  const open=trades.filter(t=>!t.closed), closed=trades.filter(t=>t.closed);
+  const open=trades.filter(t=>!t.closed),closed=trades.filter(t=>t.closed);
+  document.getElementById("jEmpty").style.display=trades.length?"none":"block";
   document.getElementById("jN").textContent=trades.length;
   if(closed.length){
     const rs=closed.map(t=>rMult(t,t.exit));
@@ -428,40 +550,37 @@ function renderJournal(){
     const avg=rs.reduce((a,b)=>a+b,0)/rs.length;
     document.getElementById("jWin").textContent=(wins/closed.length*100).toFixed(0)+"%";
     document.getElementById("jAvgR").textContent=avg.toFixed(2)+"R";
-    document.getElementById("jExp").textContent=(avg>=0?"+":"")+avg.toFixed(2)+"R/trade";
-    document.getElementById("jExp").className="v "+(avg>=0?"u":"d");
-  } else {
-    document.getElementById("jWin").textContent="—";
-    document.getElementById("jAvgR").textContent="—";
-    document.getElementById("jExp").textContent="—";
-  }
+    const e=document.getElementById("jExp");
+    e.textContent=(avg>=0?"+":"")+avg.toFixed(2)+"R";
+    e.className="v num "+(avg>=0?"u":"d");
+  }else{["jWin","jAvgR","jExp"].forEach(i=>document.getElementById(i).textContent="—");}
   const fmt=t=>{
     const live=state[t.sym]&&state[t.sym].quote?state[t.sym].quote.c:null;
     const px=t.closed?t.exit:live;
     const r=px!=null?rMult(t,px):null;
     const pl=px!=null?(t.side==="long"?(px-t.entry):(t.entry-px))*t.shares:null;
     const cls=r==null?"f":r>=0?"u":"d";
-    return `<div class="card" style="border-left-color:${r==null?"var(--flat)":r>=0?"var(--up)":"var(--dn)"}">
+    return `<div class="card" style="--vc:${r==null?"var(--flat)":r>=0?"var(--up)":"var(--dn)"}">
       <div class="row" style="justify-content:space-between">
-        <div><b>${t.sym}</b> <span class="dimtx">${t.side} · ${t.shares} @ ${t.entry} · stop ${t.stop}</span></div>
-        <div class="${cls}" style="font-weight:700">${r!=null?(r>=0?"+":"")+r.toFixed(2)+"R":"—"} ${pl!=null?"("+(pl>=0?"+$":"−$")+Math.abs(pl).toFixed(0)+")":""}</div>
+        <div><b style="font-family:var(--disp)">${t.sym}</b> <span class="dimtx num">${t.side} · ${t.shares} @ ${t.entry} · stop ${t.stop}</span></div>
+        <div class="${cls} num" style="font-weight:700">${r!=null?(r>=0?"+":"")+r.toFixed(2)+"R":"—"} ${pl!=null?"("+(pl>=0?"+$":"−$")+Math.abs(pl).toFixed(0)+")":""}</div>
       </div>
       ${t.note?`<div class="dimtx" style="margin-top:4px">${t.note}</div>`:""}
-      <div class="row" style="margin-top:6px">
-        ${!t.closed?`<button class="line" style="padding:4px 10px" onclick="closeTrade(${t.id})">Close</button>`:`<span class="dimtx">closed @ ${t.exit}</span>`}
+      <div class="row" style="margin-top:8px">
+        ${!t.closed?`<button class="line" style="padding:5px 12px" onclick="closeTrade(${t.id})">Close</button>`:`<span class="dimtx num">closed @ ${t.exit}</span>`}
         <button class="ghost" onclick="delTrade(${t.id})">delete</button>
       </div>
     </div>`;
   };
-  document.getElementById("jOpen").innerHTML=open.length?`<span class="lbl">Open (live R)</span>`+open.map(fmt).join(""):"";
-  document.getElementById("jClosed").innerHTML=closed.length?`<span class="lbl" style="margin-top:8px">Closed</span>`+closed.map(fmt).join(""):"";
+  document.getElementById("jOpen").innerHTML=open.length?`<div class="section-lbl">OPEN · LIVE R</div>`+open.map(fmt).join(""):"";
+  document.getElementById("jClosed").innerHTML=closed.length?`<div class="section-lbl">CLOSED</div>`+closed.map(fmt).join(""):"";
 }
 function exportCSV(){
-  if(!trades.length){toast("No trades yet"); return;}
+  if(!trades.length){toast("No trades yet");return;}
   const rows=[["sym","side","entry","stop","shares","exit","opened","closed","r_multiple","note"]];
   trades.forEach(t=>rows.push([t.sym,t.side,t.entry,t.stop,t.shares,t.exit??"",t.opened,t.closed??"",t.closed?rMult(t,t.exit).toFixed(2):"",(t.note||"").replace(/,/g,";")]));
   const blob=new Blob([rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"});
-  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="paper-trades.csv"; a.click();
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="paper-trades.csv";a.click();
 }
 
 /* ══ config + tabs ══ */
@@ -472,7 +591,7 @@ function saveCfg(){
        risk:+document.getElementById("cfgRisk").value||1};
   LS.set("cfg",cfg);
   toast("Saved");
-  symbols.forEach(s=>{state[s]=state[s]||{}; if(!state[s].ohlc)queueCandles(s);});
+  symbols.forEach(s=>{state[s]=state[s]||{};if(!state[s].ohlc)queueCandles(s);});
   poll();
 }
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{
@@ -489,8 +608,8 @@ document.getElementById("cfgTd").value=cfg.td;
 document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
-symbols.forEach(s=>{state[s]={}; queueCandles(s);});
-renderJournal(); render(); poll();
+symbols.forEach(s=>{state[s]={};queueCandles(s);});
+renderJournal();render();poll();
 </script>
 </body>
 </html>
