@@ -393,7 +393,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;}
 
 <footer>
   RSI-14 · SMA 20/50 · MACD 12-26-9 · Bollinger 20,2 · ATR-14 · 52-week range. Meter = sum of signal directions.
-  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v14</span>
+  Journal R = P/L ÷ initial risk. Educational tool — not investment advice. <span style="opacity:.5">· build v15</span>
 </footer>
 </div>
 <div class="modal" id="desModal" onclick="if(event.target===this)this.classList.remove('on')">
@@ -787,7 +787,7 @@ function renderTape(){
   box.innerHTML=tapeItems.map(a=>`<div class="news-item">
     ${a.filing?`<span style="font-size:9px;color:var(--amber);background:#E8A33D1A;border:1px solid #E8A33D77;border-radius:3px;padding:0 5px;margin-right:5px">FILING</span>`:""}${a.fresh?`<span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:3px;padding:0 5px;margin-right:5px">NEW</span>`:""}
     ${a.sym?`<span style="font-size:10px;color:var(--info);font-weight:600;margin-right:5px">${a.sym}</span>${tapePx(a.sym)}`:""}
-    <a href="${a.url}" target="_blank" rel="noopener" class="${a.tone||""}">${(a.headline||"").slice(0,120)}</a>
+    <a href="${a.url}" target="_blank" rel="noopener" class="${a.tone||""}"${a.filing?` style="color:var(--amber2)"`:""}>${(a.headline||"").slice(0,120)}</a>
     <div class="src">${a.source||""} · ${fmtTime(a.datetime)}</div></div>`).join("")
     ||`<span class="dimtx">waiting for market headlines…</span>`;
   setTimeout(()=>{tapeItems.forEach(a=>a.fresh=false);},14000);
