@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Signal Desk</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0E14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SignalDesk">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -350,6 +356,48 @@ async function poll(){
 }
 setInterval(poll,POLL_MS);
 
+/* ══ websocket streaming ══ */
+let ws=null, wsAlive=false, wsRetry=1000, dirty=false;
+function wsConnect(){
+  if(!cfg.fh||ws)return;
+  try{ws=new WebSocket("wss://ws.finnhub.io?token="+encodeURIComponent(cfg.fh));}catch(e){return;}
+  ws.onopen=()=>{wsAlive=true;wsRetry=1000;
+    symbols.forEach(s=>ws.send(JSON.stringify({type:"subscribe",symbol:s})));
+    document.getElementById("meta").textContent="streaming · live";};
+  ws.onmessage=ev=>{
+    try{
+      const m=JSON.parse(ev.data);
+      if(m.type!=="trade"||!m.data)return;
+      for(const t of m.data){
+        const st=state[t.s];
+        if(!st||!st.quote)continue;
+        st.quote.c=t.p;
+        if(st.quote.pc){st.quote.d=t.p-st.quote.pc;st.quote.dp=(t.p-st.quote.pc)/st.quote.pc*100;}
+        dirty=true;
+      }
+    }catch(e){}
+  };
+  ws.onclose=()=>{wsAlive=false;ws=null;
+    document.getElementById("meta").textContent=`live · 15s · #${tick}`;
+    setTimeout(wsConnect,wsRetry);wsRetry=Math.min(wsRetry*2,30000);};
+  ws.onerror=()=>{try{ws.close();}catch(e){}};
+}
+function wsSub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"subscribe",symbol:sym}));}
+function wsUnsub(sym){if(wsAlive&&ws)ws.send(JSON.stringify({type:"unsubscribe",symbol:sym}));}
+setInterval(()=>{if(dirty){dirty=false;buildAllSigs();render();renderJournal();}},1000);
+function buildAllSigs(){symbols.forEach(buildSigs);}
+
+/* ══ earnings calendar ══ */
+async function loadEarnings(sym){
+  try{
+    const from=new Date().toISOString().slice(0,10);
+    const to=new Date(Date.now()+14*86400e3).toISOString().slice(0,10);
+    const d=await fh(`/calendar/earnings?from=${from}&to=${to}&symbol=${sym}`);
+    const ev=(d.earningsCalendar||[])[0];
+    if(ev&&ev.date){state[sym].earnDate=ev.date;render();}
+  }catch(e){}
+}
+
 /* ══ charts ══ */
 function sparkSVG(data,w=120,h=36){
   if(!data||data.length<2)return `<div class="skel" style="width:${w}px;height:${h}px"></div>`;
@@ -403,6 +451,13 @@ function chipHTML(s){
   return `<span class="chip" style="border-color:${c}33;background:${c}0E"><span class="k">${s.k}</span><span class="num" style="color:${c};font-weight:600">${s.v}</span><span class="n" style="color:${c}">${s.note}</span></span>`;
 }
 
+function earnBadge(st){
+  if(!st.earnDate)return "";
+  const days=Math.ceil((new Date(st.earnDate)-Date.now())/86400e3);
+  if(days<0||days>7)return "";
+  return ` <span style="font-size:9px;color:var(--amber);border:1px solid #E8A33D55;border-radius:4px;padding:1px 6px;vertical-align:middle;letter-spacing:.08em">ER ${days===0?"TODAY":days+"D"}</span>`;
+}
+
 /* ══ render market ══ */
 function render(){
   document.getElementById("mktEmpty").style.display=symbols.length?"none":"block";
@@ -427,7 +482,7 @@ function render(){
       <details data-sym="${sym}" ${openSet.has(sym)?"open":""} ontoggle="if(this.open&&!(state['${sym}']||{}).news)loadNews('${sym}')">
       <summary><div class="row" style="justify-content:space-between">
         <div style="min-width:86px">
-          <div class="sym-name">${sym}</div>
+          <div class="sym-name">${sym}${earnBadge(st)}</div>
           <div class="verdict" style="color:${vc}">${verdict}</div>
           ${meterHTML(score)}
         </div>
@@ -461,12 +516,12 @@ function addSymbol(){
   if(!cfg.fh){toast("Set your Finnhub key in SETUP first");return;}
   symbols.push(sym);LS.set("syms",symbols);
   state[sym]={};
-  queueCandles(sym);
+  queueCandles(sym);loadEarnings(sym);wsSub(sym);
   render();poll();
 }
 function removeSym(sym){
   symbols=symbols.filter(x=>x!==sym);LS.set("syms",symbols);
-  delete state[sym];render();
+  wsUnsub(sym);delete state[sym];render();
 }
 
 /* ══ sizer ══ */
@@ -593,6 +648,8 @@ function saveCfg(){
   toast("Saved");
   symbols.forEach(s=>{state[s]=state[s]||{};if(!state[s].ohlc)queueCandles(s);});
   poll();
+  if(ws){try{ws.close();}catch(e){}ws=null;}
+  wsConnect();
 }
 document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()=>{
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("on"));
@@ -608,8 +665,8 @@ document.getElementById("cfgTd").value=cfg.td;
 document.getElementById("cfgAcct").value=cfg.acct;
 document.getElementById("cfgRisk").value=cfg.risk;
 document.getElementById("szRisk").value=cfg.risk;
-symbols.forEach(s=>{state[s]={};queueCandles(s);});
-renderJournal();render();poll();
+symbols.forEach(s=>{state[s]={};queueCandles(s);loadEarnings(s);});
+renderJournal();render();poll();wsConnect();
 </script>
 </body>
 </html>
